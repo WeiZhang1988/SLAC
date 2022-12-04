@@ -25,6 +25,7 @@ class WrappedGymEnv(gym.Wrapper):
 		step_type = 0	# 0 means first step
 		return observation, reward, step_type, info
 	def step(self, action):
+		action = self._action(action)
 		observation, reward, done, info = self.env.step(action)
 		step_type = 2 if done else 1	# 2 means last step, 1 means middle step
 		return observation, reward, step_type, info
@@ -58,10 +59,10 @@ def main():
 			reward = next_reward
 			step_type = next_step_type
 			score += reward
-			if next_step_type == 3:
+			if next_step_type == 2:
 				replay_buffer.store_transition(observation, action, reward, step_type, observation)
 				done = True
-		sacAgent.learn()
+			sacAgent.learn()
 		#------------------------------------------------------------
 		score_history.append(score)
 		avg_score = np.mean(score_history[-100:])

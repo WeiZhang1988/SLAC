@@ -1,4 +1,5 @@
 import numpy as np
+import tensorflow as tf
 
 class ReplayBuffer:
     def __init__(self, max_size=100000, observation_shape=(96,96,3), action_shape=(3,)):
@@ -30,7 +31,7 @@ class ReplayBuffer:
         observations = tf.convert_to_tensor(self.observation_memory[batch],dtype=tf.float32)
         actions = tf.convert_to_tensor(self.action_memory[batch],dtype=tf.float32)
         rewards = tf.convert_to_tensor(self.reward_memory[batch],dtype=tf.float32)
-        step_types = tf.convert_to_tensor(self.terminal_memory[batch],dtype=tf.float32)
+        step_types = tf.convert_to_tensor(self.step_type_memory[batch],dtype=tf.float32)
         next_observations = tf.convert_to_tensor(self.next_observation_memory[batch],dtype=tf.float32)
 		#------------------------------------------------------------
         return observations, actions, rewards, step_types, next_observations

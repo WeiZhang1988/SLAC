@@ -43,8 +43,9 @@ class SacAgent(object):
 	def choose_action(self, observation):
 		obs_tensor = tf.convert_to_tensor([observation],dtype=tf.float32)
 		action, _ = self.actor_network.sample_normal(obs_tensor, reparameterize=False)
+		action = tf.squeeze(action,axis=0).numpy()
 		#------------------------------------------------------------
-		return tf.squeeze(action,axis=0)
+		return action
 	#----------------------------------------------------------------
 	def store_transition(self, observation, action, reward, step_type, next_observation):
 		self.replay_buffer.store_transition(observation, action, reward, step_type, next_observation)
@@ -54,15 +55,15 @@ class SacAgent(object):
 			tau = self.target_update_tau
 		#------------------------------------------------------------
 		updated_target_critic_weights1 = []
-		target_critic_weights1 = self.target_critic_network1.weights
-		for i, weight in enumerate(self.critic_network1.weights):
-			updated_target_critic_weights1.append(weight * tau + target_critic_weights1 * (1-tau))
+		target_critic_weights1 = self.target_critic_network1.get_weights()
+		for i, weight in enumerate(self.critic_network1.get_weights()):
+			updated_target_critic_weights1.append(weight * tau + target_critic_weights1[i] * (1.0-tau))
 		self.target_critic_network1.set_weights(updated_target_critic_weights1)
 		#------------------------------------------------------------
 		updated_target_critic_weights2 = []
-		target_critic_weights2 = self.target_critic_network2.weights
-		for i, weight in enumerate(self.critic_network2.weights):
-			updated_target_critic_weights2.append(weight * tau + target_critic_weights2 * (1-tau))
+		target_critic_weights2 = self.target_critic_network2.get_weights()
+		for i, weight in enumerate(self.critic_network2.get_weights()):
+			updated_target_critic_weights2.append(weight * tau + target_critic_weights2[i] * (1.0-tau))
 		self.target_critic_network2.set_weights(updated_target_critic_weights2)
 	#----------------------------------------------------------------
 	def save_models(self):
@@ -82,7 +83,7 @@ class SacAgent(object):
 			new_policy_actions, new_policy_log_probs = self.actor_network.sample_normal(observations, reparameterize=True)
 			critic1_new_policy = self.critic_network1(observations, new_policy_actions)
 			critic2_new_policy = self.critic_network2(observations, new_policy_actions)
-			critic_new_policy = tf.math.minimum(q1_new_policy, q2_new_policy)
+			critic_new_policy = tf.math.minimum(critic1_new_policy, critic2_new_policy)
 			actor_network_loss = tf.math.reduce_mean(self.alpha * new_policy_log_probs - critic_new_policy)
 		actor_network_gradient = tape.gradient(actor_network_loss, self.actor_network.trainable_variables)
 		self.actor_network.optimizer.apply_gradients(zip(actor_network_gradient, self.actor_network.trainable_variables))
