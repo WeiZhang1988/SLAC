@@ -12,6 +12,7 @@ class WrappedGymEnv(gym.Wrapper):
 	def __init__(self, env):
 		super().__init__(env)
 		self.env = env
+		self.num_step = 0
 	def _action(self, action):
 		action = self.action_space.low + (action + 1.0) * 0.5 * (self.action_space.high - self.action_space.low)
 		return np.clip(action, self.action_space.low, self.action_space.high)
@@ -19,15 +20,19 @@ class WrappedGymEnv(gym.Wrapper):
 		action = 2.0 * (action - self.action_space.low) / (self.action_space.high - self.action_space.low) - 1.0
 		return np.clip(action, self.action_space.low, self.action_space.high)
 	def reset(self):
-		observation = self.env.reset()
-		reward = 0.0
-		info = None
-		step_type = 0	# 0 means first step
-		return observation, reward, step_type, info
+		self.num_step = 0
+		return self.env.reset()
 	def step(self, action):
 		action = self._action(action)
 		observation, reward, done, info = self.env.step(action)
-		step_type = 2 if done else 1	# 2 means last step, 1 means middle step
+		# 2 means last step, 1 means middle step, 0 means first step
+		if done:
+			step_type = 2
+		elif self.num_step>0:
+			step_type = 1
+		else:
+			step_type = 0
+		self.num_step += 1
 		return observation, reward, step_type, info
 #--------------------------------------------------------------------
 def main():
@@ -36,6 +41,7 @@ def main():
 	critic_learning_rate = 3e-4
 	alpha_learning_rate = 3e-4
 	num_episodes = 500
+	num_learning_iter = 3
 	figure_file = 'plots/sac_cr.png'
 	#----------------------------------------------------------------
 	env = WrappedGymEnv(gym.make("CarRacing-v1", domain_randomize=True))
@@ -48,21 +54,19 @@ def main():
 	load_checkpoint = False
 	#----------------------------------------------------------------
 	for i in range(num_episodes):
-		observation, reward, step_type, info = env.reset()
+		observation = env.reset()
 		done = False
-		score = reward
+		score = 0
 		while not done:
 			action = sacAgent.choose_action(observation)
-			next_observation, next_reward, next_step_type, next_info = env.step(action)
+			next_observation, reward, step_type, next_info = env.step(action)
 			replay_buffer.store_transition(observation, action, reward, step_type, next_observation)
 			observation = next_observation
-			reward = next_reward
-			step_type = next_step_type
 			score += reward
-			if next_step_type == 2:
-				replay_buffer.store_transition(observation, action, reward, step_type, observation)
+			if step_type == 2:
 				done = True
 			sacAgent.learn()
+		#for _ in range(num_learning_iter):	
 		#------------------------------------------------------------
 		score_history.append(score)
 		avg_score = np.mean(score_history[-100:])

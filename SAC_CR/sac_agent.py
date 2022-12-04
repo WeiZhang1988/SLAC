@@ -75,8 +75,11 @@ class SacAgent(object):
 	def learn(self):
 		if self.replay_buffer.mem_cntr < self.batch_size:
 			return
+		
 		#------------------------------------------------------------
-		observations, actions, rewards, step_typs, next_observations = \
+		#print("enter learning ... ","learning step ", self.learning_step)
+		#------------------------------------------------------------
+		observations, actions, rewards, step_types, next_observations = \
 			self.replay_buffer.sample_buffer(self.batch_size)
 		#------------------------------------------------------------
 		with tf.GradientTape() as tape:
@@ -84,13 +87,13 @@ class SacAgent(object):
 			critic1_new_policy = self.critic_network1(observations, new_policy_actions)
 			critic2_new_policy = self.critic_network2(observations, new_policy_actions)
 			critic_new_policy = tf.math.minimum(critic1_new_policy, critic2_new_policy)
-			actor_network_loss = tf.math.reduce_mean(self.alpha * new_policy_log_probs - critic_new_policy)
+			actor_network_loss = tf.math.reduce_mean(new_policy_log_probs - critic_new_policy)
 		actor_network_gradient = tape.gradient(actor_network_loss, self.actor_network.trainable_variables)
 		self.actor_network.optimizer.apply_gradients(zip(actor_network_gradient, self.actor_network.trainable_variables))
 		#------------------------------------------------------------
 		with tf.GradientTape(persistent=True) as tape:
 			#???whether the next actions should be new policy or old policy??? I think it should be new policy for now.
-			next_new_policy_actions, next_new_policy_log_probs = self.actor_network.sample_normal(next_observations, reparameterize=True)
+			next_new_policy_actions, _ = self.actor_network.sample_normal(next_observations, reparameterize=True)
 			td_target1 = self.reward_scale_factor * rewards + self.gamma * self.target_critic_network1(next_observations, next_new_policy_actions)
 			td_target2 = self.reward_scale_factor * rewards + self.gamma * self.target_critic_network2(next_observations, next_new_policy_actions)
 			critic1_old_policy = self.critic_network1(observations, actions)
@@ -107,7 +110,8 @@ class SacAgent(object):
 		if self.learning_step % self.target_update_period == 0:
 			self.update_network_parameters()
 		#------------------------------------------------------------
-		with tf.GradientTape() as tape:
-			_, new_policy_log_probs_alpha = self.actor_network.sample_normal(observations, reparameterize=True)
-			alpha_loss = -self.alpha * (new_policy_log_probs_alpha + self.target_entropy) 
-		alpha_gradient = tape.gradient(alpha_loss, self.alpha)
+		#with tf.GradientTape() as tape:
+			#_, new_policy_log_probs_alpha = self.actor_network.sample_normal(observations, reparameterize=True)
+			#alpha_loss = -self.alpha * (new_policy_log_probs_alpha + self.target_entropy) 
+		#alpha_gradient = tape.gradient(alpha_loss, self.alpha)
+		#alpha_optimizer.apply_gradients(zip(alpha_gradient,self.alpha))
