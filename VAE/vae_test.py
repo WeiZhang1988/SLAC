@@ -143,6 +143,8 @@ z=vae.encoder(np.expand_dims(mnist_digits[d],0))
 z=z[0]
 print('z',z)
 v=vae.decoder(z)
+
+
 import matplotlib.pyplot as plt
 plt.imshow(np.squeeze(mnist_digits[d],-1))
 plt.show()
