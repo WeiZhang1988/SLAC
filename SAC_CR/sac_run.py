@@ -7,6 +7,10 @@ import numpy as np
 from replay_buffer import ReplayBuffer
 from sac_agent import SacAgent
 from utils import plot_learning_curve
+# import os
+# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  
+# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
 
 class WrappedGymEnv(gym.Wrapper):
 	def __init__(self, env):
@@ -19,14 +23,16 @@ class WrappedGymEnv(gym.Wrapper):
 		action = 2.0 * (action - self.action_space.low) / (self.action_space.high - self.action_space.low) - 1.0
 		return np.clip(action, self.action_space.low, self.action_space.high)
 	def reset(self):
-		observation = self.env.reset()
+		observation,_ = self.env.reset()
 		reward = 0.0
 		info = None
 		step_type = 0	# 0 means first step
 		return observation, reward, step_type, info
 	def step(self, action):
 		action = self._action(action)
-		observation, reward, done, info = self.env.step(action)
+		if(np.any(np.isnan(action))):
+			print('action error',action)
+		observation, reward, done, info,_ = self.env.step(action)
 		step_type = 2 if done else 1	# 2 means last step, 1 means middle step
 		return observation, reward, step_type, info
 #--------------------------------------------------------------------
@@ -38,7 +44,7 @@ def main():
 	num_episodes = 500
 	figure_file = 'plots/sac_cr.png'
 	#----------------------------------------------------------------
-	env = WrappedGymEnv(gym.make("CarRacing-v1", domain_randomize=True))
+	env = WrappedGymEnv(gym.make("CarRacing-v2", domain_randomize=True))
 	replay_buffer = ReplayBuffer()
 	sacAgent = SacAgent(replay_buffer, actor_learning_rate, \
     		critic_learning_rate, alpha_learning_rate)
@@ -51,6 +57,7 @@ def main():
 		observation, reward, step_type, info = env.reset()
 		done = False
 		score = reward
+		step = 0
 		while not done:
 			action = sacAgent.choose_action(observation)
 			next_observation, next_reward, next_step_type, next_info = env.step(action)
@@ -59,10 +66,13 @@ def main():
 			reward = next_reward
 			step_type = next_step_type
 			score += reward
-			if next_step_type == 2:
+			step += 1
+			if (next_step_type == 2) or (step >2000):
 				replay_buffer.store_transition(observation, action, reward, step_type, observation)
 				done = True
-			sacAgent.learn()
+			# sacAgent.learn()
+			print('step:',step)
+		sacAgent.learn()
 		#------------------------------------------------------------
 		score_history.append(score)
 		avg_score = np.mean(score_history[-100:])

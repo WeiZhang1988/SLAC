@@ -90,21 +90,26 @@ class ActorNetwork(keras.Model):
 		fc2_output = self.fc2(fc1_output)
 		mu = self.mu(fc2_output)
 		sigma = self.sigma(fc2_output)
+		if(np.any(np.isnan(mu))):
+			print('mu error',mu)
 		#------------------------------------------------------------
 		return mu, sigma
 	#----------------------------------------------------------------
 	def sample_normal(self, observation, reparameterize=True):
 		mu, sigma = self.call(observation)
-		probabilities = tfp.distributions.Normal(mu, sigma)
 		#------------------------------------------------------------
 		if reparameterize:
-			probabilities = probabilities = tfp.distributions.Normal(tf.zeros_like(mu), tf.ones_like(sigma))
-			action = probabilities.sample()
+			probabilities = tfp.distributions.Normal(tf.zeros_like(mu), tf.ones_like(sigma))
+			epislion = probabilities.sample()
 			action = action*sigma + mu
+			log_probs = probabilities.log_prob(epislion)
 		else:
+			probabilities = tfp.distributions.Normal(mu, sigma)
 			action = probabilities.sample()
+			log_probs = probabilities.log_prob(action)
 		#------------------------------------------------------------
-		log_probs = probabilities.log_prob(action)
+		if(np.any(np.isnan(action))):
+			print('action error',action)
 		action = tf.math.tanh(action)
 		log_probs -= tf.math.log(1-tf.math.pow(action,2)+self.noise)#notice: might incorrect here
 		log_prob = tf.math.reduce_sum(log_probs, axis=1, keepdims=True)
