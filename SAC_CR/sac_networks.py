@@ -111,7 +111,7 @@ class ActorNetwork(keras.Model):
 		if(np.any(np.isnan(action))):
 			print('action error',action)
 		action = tf.math.tanh(action)
-		log_probs -= tf.math.log(1-tf.math.pow(action,2)+self.noise)#notice: might incorrect here
-		log_prob = tf.math.reduce_sum(log_probs, axis=1, keepdims=True)
+		log_probs = tf.math.log(1-tf.math.pow(action,2)+self.noise) # notice: might incorrect here
+		log_prob -= tf.math.reduce_sum(log_probs, axis=1, keepdims=True)
 		#------------------------------------------------------------
 		return action, log_prob
