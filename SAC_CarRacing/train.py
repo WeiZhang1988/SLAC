@@ -9,7 +9,8 @@ from model import CarWrapper
 import os
 
 
-# ref:  (https://github.com/xtma/pytorch_car_caring).
+# ref:   https://github.com/xtma/pytorch_car_caring
+#        https://github.com/Rafael1s/Deep-Reinforcement-Learning-Algorithms
 
 continue_train = True
 use_cpu = False
