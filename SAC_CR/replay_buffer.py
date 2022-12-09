@@ -2,15 +2,15 @@ import numpy as np
 import tensorflow as tf
 
 class ReplayBuffer:
-    def __init__(self, max_size=300000, observation_shape=(96,96,3), action_shape=(3,)):
+    def __init__(self, max_size=100000, observation_shape=(3,), action_shape=(1,)):
         self.mem_size = max_size
         self.mem_cntr = 0
         #------------------------------------------------------------
         self.observation_memory = np.zeros((self.mem_size, *observation_shape),dtype=np.float32)
         self.action_memory = np.zeros((self.mem_size, *action_shape),dtype=np.float32)
-        self.reward_memory = np.zeros(self.mem_size,dtype=np.float32)
-        self.step_type_memory = np.zeros(self.mem_size,dtype=np.float32)
-        self.done_memory = np.zeros(self.mem_size,dtype=np.bool)
+        self.reward_memory = np.zeros((self.mem_size, 1), dtype=np.float32)
+        self.step_type_memory = np.zeros((self.mem_size, 1), dtype=np.float32)
+        self.done_memory = np.zeros((self.mem_size, 1), dtype=np.float32)
         self.next_observation_memory = np.zeros((self.mem_size, *observation_shape),dtype=np.float32)
 	#----------------------------------------------------------------
     def store_transition(self, observation, action, reward, step_type, done, next_observation):

@@ -15,16 +15,17 @@ class ActionObservationNormalizer(object):
 		self.observation_low = observation_space.low
 		self.observation_high = observation_space.high
 	def normalizeAction(self,action):
-		action = self.action_low + (action + 1.0) * 0.5 * (self.action_high - self.action_low)
-		return np.clip(action, self.action_low, self.action_high)
+		act = self.action_low + (action + 1.0) * 0.5 * (self.action_high - self.action_low)
+		act = np.clip(act, self.action_low, self.action_high)
+		return act
 	def normalizeObservation(self,observation):
-		return np.array(observation/(self.observation_high - self.observation_low)).astype("float32")
+		obs = np.array(observation/(self.observation_high)).astype("float32")
+		return obs
 #--------------------------------------------------------------------
 class WrappedGymEnv(gym.Wrapper):
 	def __init__(self, env):
 		super(WrappedGymEnv,self).__init__(env)
 		self.env = env
-		self.reward_range = self.env.reward_range
 		self.action_low = self.env.action_space.low
 		self.action_high = self.env.action_space.high
 		self.observation_low = self.env.observation_space.low
@@ -32,11 +33,12 @@ class WrappedGymEnv(gym.Wrapper):
 		self.num_step = 0
 	def reset(self):
 		self.num_step = 0
-		return np.array(self.env.reset()/(self.observation_high - self.observation_low)).astype("float32")
+		obs = self.env.reset()/self.observation_high
+		return np.array(obs).astype("float32")
 	def step(self, action):
-		action = self.action_low + (action + 1.0) * 0.5 * (self.action_high - self.action_low)
-		action = np.clip(action, self.action_low, self.action_high)
-		observation, reward, done, info = self.env.step(action)
+		act = self.action_low + (action + 1.0) * 0.5 * (self.action_high - self.action_low)
+		act = np.clip(act, self.action_low, self.action_high)
+		observation, reward, done, info = self.env.step(act)
 		# 2 means last step, 1 means middle step, 0 means first step
 		if done:
 			step_type = 2
@@ -45,4 +47,5 @@ class WrappedGymEnv(gym.Wrapper):
 		else:
 			step_type = 0
 		self.num_step += 1
-		return np.array(observation/(self.observation_high - self.observation_low)).astype("float32"), reward, step_type, done, info
+		obs = observation/self.observation_high
+		return np.array(obs).astype("float32"), [reward], [step_type], [done], info
