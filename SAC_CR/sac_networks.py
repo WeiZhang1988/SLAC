@@ -4,21 +4,36 @@ import tensorflow as tf
 import tensorflow.keras as keras
 import tensorflow_probability as tfp
 #--------------------------------------------------------------------
+class ConvLayer(keras.layers.Layer):
+	def __init__(self, conv1_filter=8, conv1_kernel=4, conv1_stride=2, conv1_padding='SAME', \
+			conv2_filter=16,  conv2_kernel=3, conv2_stride=2, conv2_padding='SAME', \
+			conv3_filter=32,  conv3_kernel=3, conv3_stride=2, conv3_padding='SAME', \
+			conv4_filter=64,  conv4_kernel=3, conv4_stride=2, conv4_padding='SAME', \
+			conv5_filter=128, conv5_kernel=3, conv5_stride=1, conv5_padding='SAME', \
+			conv6_filter=256, conv6_kernel=3, conv6_stride=1, conv6_padding='SAME'):
+		super(ConvLayer, self).__init__()
+		self.conv1 = keras.layers.Conv2D(conv1_filter, conv1_kernel, conv1_stride, conv1_padding, activation=tf.nn.leaky_relu)
+		self.conv2 = keras.layers.Conv2D(conv2_filter, conv2_kernel, conv2_stride, conv2_padding, activation=tf.nn.leaky_relu)
+		self.conv3 = keras.layers.Conv2D(conv3_filter, conv3_kernel, conv3_stride, conv3_padding, activation=tf.nn.leaky_relu)
+		self.conv4 = keras.layers.Conv2D(conv4_filter, conv4_kernel, conv4_stride, conv4_padding, activation=tf.nn.leaky_relu)
+		self.conv5 = keras.layers.Conv2D(conv5_filter, conv5_kernel, conv5_stride, conv5_padding, activation=tf.nn.leaky_relu)
+		self.conv6 = keras.layers.Conv2D(conv6_filter, conv6_kernel, conv6_stride, conv6_padding, activation=tf.nn.leaky_relu)
+		self.flat = keras.layers.Flatten()
+	def call(self, observation):
+		conv1_output = self.conv1(observation)
+		conv2_output = self.conv2(conv1_output)
+		conv3_output = self.conv3(conv2_output)
+		conv4_output = self.conv4(conv3_output)
+		conv5_output = self.conv5(conv4_output)
+		conv6_output = self.conv6(conv5_output)
+		output = self.flat(conv6_output)
+		return output
+#--------------------------------------------------------------------
 class CriticNetwork(keras.Model):
-	def __init__(self, conv1_filter=32, conv1_kernel=5, conv1_stride=2, conv1_padding="SAME", \
-			conv2_filter=64, conv2_kernel=3, conv2_stride=1, conv2_padding="VALID", \
-			fc1_dims=512, fc2_dims=256, fc3_dims=128, \
-			name='critic', chkpt_dir='tmp/sac', use_conv=False):
+	def __init__(self, fc1_dims=512, fc2_dims=256, fc3_dims=128, \
+			name='critic', chkpt_dir='tmp/sac'):
 		super(CriticNetwork, self).__init__()
 		#------------------------------------------------------------
-		self.conv1_filter = conv1_filter
-		self.conv1_kernel = conv1_kernel
-		self.conv1_stride = conv1_stride
-		self.conv1_padding = conv1_padding
-		self.conv2_filter = conv2_filter
-		self.conv2_kernel = conv2_kernel
-		self.conv2_stride = conv2_stride
-		self.conv2_padding = conv2_padding
 		self.fc1_dims = fc1_dims
 		self.fc2_dims = fc2_dims
 		self.fc3_dims = fc3_dims
@@ -26,25 +41,16 @@ class CriticNetwork(keras.Model):
 		self.model_name = name
 		self.checkpoint_dir = chkpt_dir
 		self.checkpoint_file = os.path.join(self.checkpoint_dir, name+'_sac')
-		self.use_conv = use_conv
 		#------------------------------------------------------------
-		if self.use_conv:
-			self.conv1 = keras.layers.Conv2D(self.conv1_filter, self.conv1_kernel, self.conv1_stride, self.conv1_padding, activation=tf.nn.leaky_relu)
-			self.conv2 = keras.layers.Conv2D(self.conv2_filter, self.conv2_kernel, self.conv2_stride, self.conv2_padding, activation=tf.nn.leaky_relu)
-			self.flat = keras.layers.Flatten()
+		self.conv = ConvLayer()
 		self.fc1 = keras.layers.Dense(self.fc1_dims, activation='relu')
 		self.fc2 = keras.layers.Dense(self.fc2_dims, activation='relu')
 		self.fc3 = keras.layers.Dense(self.fc3_dims, activation='relu')
 		self.critic = keras.layers.Dense(1, activation=None)
 	#----------------------------------------------------------------
 	def call(self, state, action):
-		if self.use_conv:
-			conv1_output = self.conv1(state)
-			conv2_output = self.conv2(conv1_output)
-			flat_output = self.flat(conv2_output)
-			fc1_output = self.fc1(tf.concat([flat_output,action], axis=1))
-		else:
-			fc1_output = self.fc1(tf.concat([state,action], axis=1))
+		conv_output = self.conv(state)
+		fc1_output = self.fc1(tf.concat([conv_output,action], axis=1))
 		fc2_output = self.fc2(fc1_output)
 		fc3_output = self.fc3(fc2_output)
 		#------------------------------------------------------------
@@ -53,22 +59,13 @@ class CriticNetwork(keras.Model):
 		return critic
 #--------------------------------------------------------------------
 class ActorNetwork(keras.Model):
-	def __init__(self, action_shape=(1,), conv1_filter=32, conv1_kernel=5, conv1_stride=2, conv1_padding="SAME", \
-			conv2_filter=64, conv2_kernel=3, conv2_stride=1, conv2_padding="VALID", \
+	def __init__(self, action_shape=(3,), \
 			fc1_dims=512, fc2_dims=256, fc3_dims=128, \
-			name='actor', chkpt_dir='tmp/sac', use_conv = False):
+			name='actor', chkpt_dir='tmp/sac'):
 		super(ActorNetwork, self).__init__()
 		#------------------------------------------------------------
 		self.action_shape = action_shape[0]
 		#------------------------------------------------------------
-		self.conv1_filter = conv1_filter
-		self.conv1_kernel = conv1_kernel
-		self.conv1_stride = conv1_stride
-		self.conv1_padding = conv1_padding
-		self.conv2_filter = conv2_filter
-		self.conv2_kernel = conv2_kernel
-		self.conv2_stride = conv2_stride
-		self.conv2_padding = conv2_padding
 		self.fc1_dims = fc1_dims
 		self.fc2_dims = fc2_dims
 		self.fc3_dims = fc3_dims
@@ -76,14 +73,10 @@ class ActorNetwork(keras.Model):
 		self.model_name = name
 		self.checkpoint_dir = chkpt_dir
 		self.checkpoint_file = os.path.join(self.checkpoint_dir, name+'_sac')
-		self.use_conv = use_conv
 		#------------------------------------------------------------
 		self.noise = 1e-6
 		#------------------------------------------------------------
-		if self.use_conv:
-			self.conv1 = keras.layers.Conv2D(self.conv1_filter, self.conv1_kernel, self.conv1_stride, self.conv1_padding, activation=tf.nn.leaky_relu)
-			self.conv2 = keras.layers.Conv2D(self.conv2_filter, self.conv2_kernel, self.conv2_stride, self.conv2_padding, activation=tf.nn.leaky_relu)
-			self.flat = keras.layers.Flatten()
+		self.conv = ConvLayer()
 		self.fc1 = keras.layers.Dense(self.fc1_dims, activation='relu')
 		self.fc2 = keras.layers.Dense(self.fc2_dims, activation='relu')
 		self.fc3 = keras.layers.Dense(self.fc3_dims, activation='relu')
@@ -91,13 +84,8 @@ class ActorNetwork(keras.Model):
 		self.sigma = keras.layers.Dense(self.action_shape, activation='sigmoid')
 	#----------------------------------------------------------------
 	def call(self, observation):
-		if self.use_conv:
-			conv1_output = self.conv1(observation)
-			conv2_output = self.conv2(conv1_output)
-			flat_output = self.flat(conv2_output)
-			fc1_output = self.fc1(flat_output)
-		else:
-			fc1_output = self.fc1(observation)
+		conv_output = self.conv(observation)
+		fc1_output = self.fc1(conv_output)
 		fc2_output = self.fc2(fc1_output)
 		fc3_output = self.fc3(fc2_output)
 		mu = self.mu(fc3_output)

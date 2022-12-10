@@ -5,15 +5,15 @@ import tensorflow.keras as keras
 import pickle
 from tensorflow.keras.optimizers import Adam
 from replay_buffer import ReplayBuffer
-from sac_networks import ActorNetwork, CriticNetwork
+from sac_networks import ActorNetwork, CriticNetwork, ConvLayer
 
 class SacAgent(object):
-	def __init__(self, replay_buffer, actor_learning_rate=3e-4, \
+	def __init__(self, actor_learning_rate=3e-4, \
 			critic_learning_rate=3e-4, alpha_learning_rate=3e-4, \
 			batch_size=256, target_update_tau=0.005, target_update_period=5, \
-			gamma=0.995, reward_scale_factor=1.0, target_entropy=-1.0):
+			gamma=0.995, reward_scale_factor=2.0, target_entropy=-3.0):
 		#------------------------------------------------------------
-		self.replay_buffer = replay_buffer
+		self.replay_buffer = ReplayBuffer()
 		self.actor_network = ActorNetwork(name="actor")
 		self.critic_network1 = CriticNetwork(name="critic1")
 		self.critic_network2 = CriticNetwork(name="critic2")
@@ -44,6 +44,13 @@ class SacAgent(object):
 	def choose_action(self, observation):
 		obs_tensor = tf.convert_to_tensor([observation],dtype=tf.float32)
 		action, _ = self.actor_network.sample_normal(obs_tensor)
+		action = tf.squeeze(action,axis=0).numpy()
+		#------------------------------------------------------------
+		return action
+	#----------------------------------------------------------------
+	def choose_action_deterministic(self, observation):
+		obs_tensor = tf.convert_to_tensor([observation],dtype=tf.float32)
+		action, _ = self.actor_network(obs_tensor)
 		action = tf.squeeze(action,axis=0).numpy()
 		#------------------------------------------------------------
 		return action
@@ -85,7 +92,7 @@ class SacAgent(object):
 		self.target_critic_network1.load_weights(self.target_critic_network1.checkpoint_file)
 		self.target_critic_network2.load_weights(self.target_critic_network2.checkpoint_file)
 		with open('tmp/sac/log_alpha.pickle', 'rb') as f:
-			pickle.load(self.log_alpha, f)
+			self.log_alpha = pickle.load(f)
 	#----------------------------------------------------------------
 	def learn(self):
 		if self.replay_buffer.mem_cntr < self.batch_size:
