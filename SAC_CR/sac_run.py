@@ -18,7 +18,7 @@ def main():
 	env_name = "CarRacing-v1"
 	#hyper parameters
 	num_random_episodes = 50
-	num_episodes = 5000
+	num_episodes = 10000
 	num_learning_iter = 10
 	figure_file = 'tmp/sac_cr.png'
 	#----------------------------------------------------------------
@@ -70,7 +70,7 @@ def main():
 			print('episode ', i, 'score %.1f' % score, 'avg score %.1f' % avg_score)
 			if avg_score > best_score:
 				best_score = avg_score
-				sacAgent.save_models()
+				#sacAgent.save_models()
 			#------------------------------------------------------------
 			if activate_learning:
 				for _ in range(num_learning_iter):	

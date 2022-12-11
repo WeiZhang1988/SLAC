@@ -30,10 +30,12 @@ def main():
 			done = False
 			score = 0
 			while not done:
-				action = sacAgent.choose_action_deterministic(observation)
+				#action = np.random.uniform(-1,1,env.action_space.shape)
+				action = sacAgent.choose_action(observation)
 				next_observation, reward, step_type, done, info = env.step(action)
 				if render_animation:
 					env.render()
+				observation = next_observation
 				score += reward[0]
 				done = done[0]
 			score_history.append(score)
