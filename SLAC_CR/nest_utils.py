@@ -21,7 +21,7 @@ def map_distribution_structure(func, *dist_structure):
     for dist in dist_list[1:]:
       assert dist.__class__ == dist_list[0].__class__
     dist_ctor = dist_list[0].__class__
-
+    
     dist_other_params_list = [_get_other_params(dist) for dist in dist_list]
 
     # all dists should have the same non-tensor params
@@ -33,11 +33,11 @@ def map_distribution_structure(func, *dist_structure):
     sig = inspect.signature(dist_ctor)
     dist_other_params = {k: v for k, v in dist_other_params.items() if
                          k in sig.parameters}
-
+    
     dist_params_list = [_get_params(dist) for dist in dist_list]
     values_list = [list(params.values()) for params in dist_params_list]
     values_list = list(zip(*values_list))
-
+    
     structure_list = [func(*values) for values in values_list]
 
     values_list = [tf.nest.flatten(structure) for structure in structure_list]

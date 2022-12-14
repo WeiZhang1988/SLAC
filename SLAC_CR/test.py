@@ -1,25 +1,38 @@
 import numpy as np
 import tensorflow as tf
 from replay_buffer import ReplayBuffer
+from slac_networks import ModelNetwork
+import nest_utils
+import tensorflow_probability as tfp
+import functools
 
-obs = np.random.rand(30,96,96,3)
-act = np.random.rand(30,3)
-rwd = np.random.rand(30,1)
-stp = np.random.rand(30,1)
-don = np.random.rand(30,1)
-next_obs = np.random.rand(30,96,96,3)
+obs = tf.convert_to_tensor(np.random.rand(2,3,64,64,3),dtype=tf.float32)
+act = tf.convert_to_tensor(np.random.rand(2,3,3),dtype=tf.float32)
+rwd = tf.convert_to_tensor(np.random.rand(2,3,1),dtype=tf.float32)
+stp = tf.convert_to_tensor(np.random.rand(2,3,1),dtype=tf.float32)
+don = tf.convert_to_tensor(np.random.rand(2,3,1),dtype=tf.float32)
+next_obs = tf.convert_to_tensor(np.random.rand(2,3,64,64,3),dtype=tf.float32)
+"""
+print("---stp---",stp)
+print("---stp---",stp[:, 0:1])
+reset_mask = tf.concat([tf.ones_like(stp[:, 0:1],dtype=tf.bool),tf.equal(stp[:,1:],0)],axis=1)
+print("---reset_mask---",reset_mask)
+print(reset_mask[:, :, None])
+"""
 
-rb = ReplayBuffer()
+m=ModelNetwork()
+print(m.compute_loss(obs,act,stp))
 
-for i in range(30):
-	rb.store_transition(obs[i],act[i],rwd[i],stp[i],don[i],next_obs[i])
+"""
+mask=tf.equal(tf.transpose(tf.squeeze(stp,axis=-1))[0],0)
+mask=tf.convert_to_tensor([[True],[False]])
+print("---mask---",mask)
 
-sample = rb.sample_buffer(10,5)
+p1 = tfp.distributions.MultivariateNormalDiag(tf.convert_to_tensor([[0.0, -1.0, 1.0],[0.0, -1.0, 1.0]]), tf.convert_to_tensor([[1.0,1.0,1.0],[1.0,1.0,1.0]]))
+print("---p1---",p1)
+p2 = tfp.distributions.MultivariateNormalDiag(tf.convert_to_tensor([[0.0, -1.0, 1.0],[0.0, -1.0, 1.0]]), tf.convert_to_tensor([[1.0,1.0,1.0],[1.0,1.0,1.0]]))
+print("---p2---",p2)
+new_p = nest_utils.map_distribution_structure(functools.partial(tf.where, mask), p1, p2)
+print("new_p",new_p)
+"""
 
-print("length: ",len(sample))
-print("obs shape: ",tf.shape(sample[0][0]))
-print("act shape: ",tf.shape(sample[1][0]))
-print("rwd shape: ",tf.shape(sample[2][0]))
-print("stp shape: ",tf.shape(sample[3][0]))
-print("don shape: ",tf.shape(sample[4][0]))
-print("next_obs shape: ",tf.shape(sample[5][0]))

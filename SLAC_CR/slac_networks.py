@@ -19,8 +19,8 @@ class ConvLayer(keras.layers.Layer):
 		self.conv4 = keras.layers.Conv2D(conv4_filter, conv4_kernel, conv4_stride, conv4_padding, activation=tf.nn.leaky_relu)
 		self.conv5 = keras.layers.Conv2D(conv5_filter, conv5_kernel, conv5_stride, conv5_padding, activation=tf.nn.leaky_relu)
 	#----------------------------------------------------------------
-	def call(self, observation):
-		conv1_output = self.conv1(observation)
+	def call(self, inputs):
+		conv1_output = self.conv1(inputs)
 		conv2_output = self.conv2(conv1_output)
 		conv3_output = self.conv3(conv2_output)
 		conv4_output = self.conv4(conv3_output)
@@ -33,6 +33,20 @@ class TransConvLayer(keras.layers.Layer):
 			transconv3_filter=16,  transconv3_kernel=3, transconv3_stride=2, transconv3_padding='SAME', \
 			transconv4_filter=8,  transconv4_kernel=3, transconv4_stride=2, transconv4_padding='SAME', \
 			transconv5_filter=3, transconv5_kernel=5, transconv5_stride=2, transconv5_padding='SAME'):
+		super(TransConvLayer, self).__init__()
+		self.transconv1 = keras.layers.Conv2DTranspose(transconv1_filter, transconv1_kernel, transconv1_stride, transconv1_padding, activation=tf.nn.leaky_relu)
+		self.transconv2 = keras.layers.Conv2DTranspose(transconv2_filter, transconv2_kernel, transconv2_stride, transconv2_padding, activation=tf.nn.leaky_relu)
+		self.transconv3 = keras.layers.Conv2DTranspose(transconv3_filter, transconv3_kernel, transconv3_stride, transconv3_padding, activation=tf.nn.leaky_relu)
+		self.transconv4 = keras.layers.Conv2DTranspose(transconv4_filter, transconv4_kernel, transconv4_stride, transconv4_padding, activation=tf.nn.leaky_relu)
+		self.transconv5 = keras.layers.Conv2DTranspose(transconv5_filter, transconv5_kernel, transconv5_stride, transconv5_padding, activation=tf.nn.leaky_relu)
+	#----------------------------------------------------------------
+	def call(self, inputs):
+		transconv1_output = self.transconv1(inputs)
+		transconv2_output = self.transconv2(transconv1_output)
+		transconv3_output = self.transconv3(transconv2_output)
+		transconv4_output = self.transconv4(transconv3_output)
+		output = self.transconv5(transconv4_output)
+		return output
 #--------------------------------------------------------------------
 class CriticNetwork(keras.Model):
 	def __init__(self, fc1_dims=256, fc2_dims=256, \
@@ -110,7 +124,7 @@ class MultivariateNormalLayer(keras.layers.Layer):
 	def __init__(self, output_size=32, sigma=None, fc1_dims=64, fc2_dims=64):
 		super(MultivariateNormalLayer, self).__init__()
 		self.output_size = output_size
-		if sigma = None:
+		if sigma == None:
 			self.generate_sigma = True
 		else:
 			self.generate_sigma = False
@@ -123,11 +137,15 @@ class MultivariateNormalLayer(keras.layers.Layer):
 		if self.generate_sigma:
 			self.sigma = keras.layers.Dense(self.output_size, activation='sigmoid')
 	#----------------------------------------------------------------
-	def call(self, inputs):
+	def call(self, *inputs):
+		if len(inputs) > 1:
+			inputs = tf.concat(inputs, axis=-1)
+		else:
+			inputs, = inputs
 		fc1_output = self.fc1(inputs)
 		fc2_output = self.fc2(fc1_output)
 		mu = self.mu(fc2_output)
-		if self.generate_sigma
+		if self.generate_sigma:
 			sigma = self.sigma(fc2_output)
 		else:
 			sigma = self.sigma * tf.ones_like(mu)
@@ -140,8 +158,9 @@ class ConstantMultivariateNormalLayer(keras.layers.Layer):
 		self.sigma = sigma
 	#----------------------------------------------------------------
 	def call(self, inputs):
-		batch_shape = tf.shape(inputs[0])
-		shape = tf.concat([batch_shape, output_size],axis=0)
+		batch_shape = tf.shape(inputs)[0]
+		sequence_size = tf.shape(inputs)[1]
+		shape = tf.concat([batch_shape, sequence_size, self.output_size],axis=0)
 		mu = tf.zeros(shape)
 		if self.sigma is None:
 			sigma = tf.ones(shape)
@@ -160,20 +179,24 @@ class Compressor(keras.layers.Layer):
 		collapsed_shape = tf.concat(([-1], input_shape), axis=0)
 		reshape_output = tf.reshape(inputs, collapsed_shape)
 		conv_output = self.conv(reshape_output)
-		expanded_shape = tf.concat((tf.shape(inputs)[:-3][self.feature_size]), axis=0)
+		expanded_shape = tf.concat((tf.shape(inputs)[:-3],[self.feature_size]), axis=0)
 		return tf.reshape(conv_output, expanded_shape)
 #--------------------------------------------------------------------
 class Decoder(keras.layers.Layer):
 	def __init__(self,sigma=1.0):
 		super(Decoder, self).__init__()
 		self.sigma = sigma
-		self.transconv = TransConvLayer
+		self.transconv = TransConvLayer()
 	#----------------------------------------------------------------
-	def call(self, inputs):
+	def call(self, *inputs):
+		if len(inputs)>1:
+			latent = tf.concat(inputs, axis=-1)
+		else:
+			latent, = inputs
 		collapsed_shape = tf.stack([-1, 1, 1, tf.shape(latent)[-1]], axis=0)
-		reshape_output = tf.reshape(inputs, collapsed_shape)
+		reshape_output = tf.reshape(latent, collapsed_shape)
 		transconv_output = self.transconv(reshape_output)
-		expanded_shape = tf.concat([tf.shape(latent)[:-1], tf.shape(out)[1:]], axis=0)
+		expanded_shape = tf.concat([tf.shape(latent)[:-1], tf.shape(transconv_output)[1:]], axis=0)
 		output = tf.reshape(transconv_output, expanded_shape)
 		return tfp.distributions.Independent(distribution=tfp.distributions.Normal(loc=output, scale=self.sigma),reinterpreted_batch_ndims=3)
 #--------------------------------------------------------------------
@@ -204,15 +227,17 @@ class ModelNetwork(keras.Model):
 		# q(z_{t+1}^2 | z_{t+1}^1, z_t^2, a_t) = p(z_{t+1}^2 | z_{t+1}^1, z_t^2, a_t)
 		self.latent2_posterior = self.latent2_prior
 	#----------------------------------------------------------------
-	def sample_posterior(self,observation,action,step_type):
-		sequence_length = step_types.shape[1].value - 1
-		action = action[:, :sequence_length]
-		feature = self.compressor(observation)
+
+	#----------------------------------------------------------------
+	def sample_posterior(self,observations,actions,step_types):
+		sequence_length = step_types.shape[1] - 1
+		actions = actions[:, :sequence_length]
+		features = self.compressor(observations)
 		#------------------------------------------------------------
 		# swap batch and time axes
-		feature = tf.transpose(feature, [1, 0, 2])
-		action = tf.transpose(action, [1, 0, 2])
-		step_type = tf.transpose(step_type, [1, 0])
+		features = tf.transpose(features, [1, 0, 2])
+		actions = tf.transpose(actions, [1, 0, 2])
+		step_types = tf.transpose(step_types, [1, 0, 2])
 		#------------------------------------------------------------
 		latent1_dists = []
 		latent1_samples = []
@@ -220,19 +245,19 @@ class ModelNetwork(keras.Model):
 		latent2_samples = []
 		for t in range(sequence_length + 1):
 			if t == 0:
-				latent1_dist = self.latent1_first_posterior(feature[t])
+				latent1_dist = self.latent1_first_posterior(features[t])
 				latent1_sample = latent1_dist.sample()
 				latent2_dist = self.latent2_first_posterior(latent1_sample)
 				latent2_sample = latent2_dist.sample()
 			else:
-				reset_mask = tf.equal(step_type[t], 0)
-				latent1_first_dist = self.latent1_first_posterior(feature[t])
-				latent1_dist = self.latent1_posterior(feature[t],latent2_samples[t-1],action[t-1])
+				reset_mask = tf.equal(step_types[t], 0)
+				latent1_first_dist = self.latent1_first_posterior(features[t])
+				latent1_dist = self.latent1_posterior(features[t],latent2_samples[t-1],actions[t-1])
 				latent1_dist = nest_utils.map_distribution_structure(functools.partial(tf.where, reset_mask), latent1_first_dist, latent1_dist)
 				latent1_sample = latent1_dist.sample()
 				#----------------------------------------------------
 				latent2_first_dist = self.latent2_first_posterior(latent1_sample)
-				latent2_dist = self.latent2_posterior(latent1_sample, latent2_samples[t-1], action[t-1])
+				latent2_dist = self.latent2_posterior(latent1_sample, latent2_samples[t-1], actions[t-1])
 				latent2_dist = nest_utils.map_distribution_structure(functools.partial(tf.where, reset_mask), latent2_first_dist, latent2_dist)
 				latent2_sample = latent2_dist.sample()
 			#--------------------------------------------------------
@@ -248,4 +273,43 @@ class ModelNetwork(keras.Model):
 		#------------------------------------------------------------
 		return (latent1_samples, latent2_samples), (latent1_dists, latent2_dists)
 	#----------------------------------------------------------------
-	def compute_loss(self,):
+	def compute_loss(self, observations, actions, step_types):
+		sequence_length = step_types.shape[1] - 1
+		#------------------------------------------------------------
+		(latent1_posterior_samples, latent2_posterior_samples), (latent1_posterior_dists, latent2_posterior_dists) = self.sample_posterior(observations, actions, step_types)
+		#------------------------------------------------------------
+		def where_and_concat(reset_masks, first_prior_tensors, after_first_prior_tensors):
+			after_first_prior_tensors = tf.where(reset_masks[:, 1:], first_prior_tensors[:, 1:], after_first_prior_tensors)
+			prior_tensors = tf.concat([first_prior_tensors[:, 0:1], after_first_prior_tensors], axis=1)
+			return prior_tensors
+		#------------------------------------------------------------
+		reset_masks = tf.concat([tf.ones_like(step_types[:, 0:1],dtype=tf.bool),tf.equal(step_types[:,1:],0)],axis=1)
+		#------------------------------------------------------------
+		latent1_reset_masks = tf.tile(reset_masks, [1, 1, self.latent1_size])
+		latent1_first_prior_dists = self.latent1_first_prior(step_types)
+		# these distributions start at t=1 and the inputs are from t-1
+		latent1_after_first_prior_dists = self.latent1_prior(latent2_posterior_samples[:, :sequence_length],actions[:, :sequence_length])
+		latent1_prior_dists = nest_utils.map_distribution_structure(functools.partial(where_and_concat, latent1_reset_masks),latent1_first_prior_dists,latent1_after_first_prior_dists)
+		#------------------------------------------------------------
+		latent2_reset_masks = tf.tile(reset_masks, [1, 1, self.latent2_size])
+		latent2_first_prior_dists = self.latent2_first_prior(latent1_posterior_samples)
+		# these distributions start at t=1 and the last 2 inputs are from t-1
+		latent2_after_first_prior_dists = self.latent2_prior(latent1_posterior_samples[:, 1:sequence_length+1],latent2_posterior_samples[:, :sequence_length],actions[:, :sequence_length])
+		latent2_prior_dists = nest_utils.map_distribution_structure(functools.partial(where_and_concat, latent2_reset_masks),latent2_first_prior_dists,latent2_after_first_prior_dists)
+		latent1_kl_divergences = (latent1_posterior_dists.log_prob(latent1_posterior_samples) - latent1_prior_dists.log_prob(latent1_posterior_samples))
+		latent1_kl_divergences = tf.reduce_sum(latent1_kl_divergences, axis=1)
+		if self.latent2_posterior == self.latent2_prior:
+			latent2_kl_divergences = 0.0
+		else:
+			latent2_kl_divergences = (latent2_posterior_dists.log_prob(latent2_posterior_samples)- latent2_prior_dists.log_prob(latent2_posterior_samples))
+			latent2_kl_divergences = tf.reduce_sum(latent2_kl_divergences, axis=1)
+		likelihood_dists = self.decoder(latent1_posterior_samples, latent2_posterior_samples)
+		likelihood_log_probs = likelihood_dists.log_prob(observations)
+		likelihood_log_probs = tf.reduce_sum(likelihood_log_probs, axis=1)
+		reconstruction_error = tf.reduce_sum(tf.square(observations - likelihood_dists.distribution.loc),axis=list(range(-len(likelihood_dists.event_shape), 0)))
+		reconstruction_error = tf.reduce_sum(reconstruction_error, axis=1)
+		# summed over the time dimension
+		elbo = likelihood_log_probs - latent1_kl_divergences - latent2_kl_divergences
+		# average over the batch dimension
+		loss = -tf.reduce_mean(elbo)
+		return loss
