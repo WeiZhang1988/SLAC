@@ -7,6 +7,7 @@ import nest_utils
 import functools
 #--------------------------------------------------------------------
 class ConvLayer(keras.layers.Layer):
+	# in current use case, expected inputs are of shape [batch, 64, 64, 3], outputs are of shape [batch, 1, 1, 64]
 	def __init__(self, conv1_filter=8, conv1_kernel=5, conv1_stride=2, conv1_padding='SAME', \
 			conv2_filter=16,  conv2_kernel=3, conv2_stride=2, conv2_padding='SAME', \
 			conv3_filter=32,  conv3_kernel=3, conv3_stride=2, conv3_padding='SAME', \
@@ -28,6 +29,7 @@ class ConvLayer(keras.layers.Layer):
 		return output
 #--------------------------------------------------------------------
 class TransConvLayer(keras.layers.Layer):
+	# in current use case, expected inputs are of shape [batch, 1, 1, depth], outputs are of shape [batch, 64, 64, 3]
 	def __init__(self, transconv1_filter=64, transconv1_kernel=4, transconv1_stride=1, transconv1_padding='VALID', \
 			transconv2_filter=32,  transconv2_kernel=3, transconv2_stride=2, transconv2_padding='SAME', \
 			transconv3_filter=16,  transconv3_kernel=3, transconv3_stride=2, transconv3_padding='SAME', \
@@ -121,6 +123,7 @@ class ActorNetwork(keras.Model):
 		return action, log_prob
 #--------------------------------------------------------------------
 class MultivariateNormalLayer(keras.layers.Layer):
+	# in current use case, expected inputs are of shape [batch, base_shape], outputs are of shape [batch, sequence, output_size]
 	def __init__(self, output_size=32, sigma=None, fc1_dims=64, fc2_dims=64):
 		super(MultivariateNormalLayer, self).__init__()
 		self.output_size = output_size
@@ -152,6 +155,7 @@ class MultivariateNormalLayer(keras.layers.Layer):
 		return tfp.distributions.MultivariateNormalDiag(loc=mu, scale_diag=sigma)
 #--------------------------------------------------------------------
 class ConstantMultivariateNormalLayer(keras.layers.Layer):
+	# in current use case, expected inputs are of shape [batch, base_shape], outputs are of shape [batch, sequence, output_size]
 	def __init__(self, output_size=32, sigma=None):
 		super(ConstantMultivariateNormalLayer, self).__init__()
 		self.output_size = output_size
@@ -159,8 +163,8 @@ class ConstantMultivariateNormalLayer(keras.layers.Layer):
 	#----------------------------------------------------------------
 	def call(self, inputs):
 		batch_shape = tf.shape(inputs)[0]
-		sequence_size = tf.shape(inputs)[1]
-		shape = tf.concat([batch_shape, sequence_size, self.output_size],axis=0)
+		sequence = tf.shape(inputs)[1]
+		shape = tf.concat([batch_shape, sequence, self.output_size],axis=0)
 		mu = tf.zeros(shape)
 		if self.sigma is None:
 			sigma = tf.ones(shape)
@@ -169,6 +173,7 @@ class ConstantMultivariateNormalLayer(keras.layers.Layer):
 		return tfp.distributions.MultivariateNormalDiag(loc=mu, scale_diag=sigma)
 #--------------------------------------------------------------------
 class Compressor(keras.layers.Layer):
+	# in current use case, expected inputs are of shape [batch, sequence, 64, 64, 3], outputs are of shape [batch, sequence, 64]
 	def __init__(self, feature_size=64):
 		super(Compressor, self).__init__()
 		self.feature_size = feature_size
@@ -183,6 +188,7 @@ class Compressor(keras.layers.Layer):
 		return tf.reshape(conv_output, expanded_shape)
 #--------------------------------------------------------------------
 class Decoder(keras.layers.Layer):
+	# in current use case, expected inputs are of shape [batch*sequence, 1, 1, depth], outputs are of shape [batch, sequence, 64, 64, 3]
 	def __init__(self,sigma=1.0):
 		super(Decoder, self).__init__()
 		self.sigma = sigma
@@ -201,7 +207,7 @@ class Decoder(keras.layers.Layer):
 		return tfp.distributions.Independent(distribution=tfp.distributions.Normal(loc=output, scale=self.sigma),reinterpreted_batch_ndims=3)
 #--------------------------------------------------------------------
 class ModelNetwork(keras.Model):
-	def __init__(self, observation_shape=(96,96,3), action_shape=(3,), latent1_size=32, latent2_size=256):
+	def __init__(self, observation_shape=(64,64,3), action_shape=(3,), latent1_size=32, latent2_size=256):
 		super(ModelNetwork,self).__init__()
 		self.latent1_size = latent1_size
 		self.latent2_size = latent2_size
@@ -296,6 +302,7 @@ class ModelNetwork(keras.Model):
 		# these distributions start at t=1 and the last 2 inputs are from t-1
 		latent2_after_first_prior_dists = self.latent2_prior(latent1_posterior_samples[:, 1:sequence_length+1],latent2_posterior_samples[:, :sequence_length],actions[:, :sequence_length])
 		latent2_prior_dists = nest_utils.map_distribution_structure(functools.partial(where_and_concat, latent2_reset_masks),latent2_first_prior_dists,latent2_after_first_prior_dists)
+		#------------------------------------------------------------
 		latent1_kl_divergences = (latent1_posterior_dists.log_prob(latent1_posterior_samples) - latent1_prior_dists.log_prob(latent1_posterior_samples))
 		latent1_kl_divergences = tf.reduce_sum(latent1_kl_divergences, axis=1)
 		if self.latent2_posterior == self.latent2_prior:
