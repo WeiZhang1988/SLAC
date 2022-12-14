@@ -6,12 +6,12 @@ import nest_utils
 import tensorflow_probability as tfp
 import functools
 
-obs = tf.convert_to_tensor(np.random.rand(2,5,64,64,3),dtype=tf.float32)
+obs = tf.convert_to_tensor(np.random.rand(2,5,96,96,3),dtype=tf.float32)
 act = tf.convert_to_tensor(np.random.rand(2,5,3),dtype=tf.float32)
 rwd = tf.convert_to_tensor(np.random.rand(2,5,1),dtype=tf.float32)
 stp = tf.convert_to_tensor(np.random.rand(2,5,1),dtype=tf.float32)
 don = tf.convert_to_tensor(np.random.rand(2,5,1),dtype=tf.float32)
-next_obs = tf.convert_to_tensor(np.random.rand(2,5,64,64,3),dtype=tf.float32)
+next_obs = tf.convert_to_tensor(np.random.rand(2,5,96,96,3),dtype=tf.float32)
 """
 print("---stp---",stp)
 print("---stp---",stp[:, 0:1])
@@ -20,8 +20,11 @@ print("---reset_mask---",reset_mask)
 print(reset_mask[:, :, None])
 """
 
-m=ModelNetwork()
-print(m.compute_loss(obs,act,stp))
+clip_obs = obs[:,:,16:80, 16:80,:]
+print(tf.shape(clip_obs))
+
+#m=ModelNetwork()
+#print(m.compute_loss(obs,act,stp))
 
 """
 mask=tf.equal(tf.transpose(tf.squeeze(stp,axis=-1))[0],0)

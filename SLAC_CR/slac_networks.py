@@ -207,10 +207,14 @@ class Decoder(keras.layers.Layer):
 		return tfp.distributions.Independent(distribution=tfp.distributions.Normal(loc=output, scale=self.sigma),reinterpreted_batch_ndims=3)
 #--------------------------------------------------------------------
 class ModelNetwork(keras.Model):
-	def __init__(self, observation_shape=(64,64,3), action_shape=(3,), latent1_size=32, latent2_size=256):
+	def __init__(self, observation_shape=(64,64,3), action_shape=(3,), latent1_size=32, latent2_size=256, name='model', chkpt_dir='tmp/slac'):
 		super(ModelNetwork,self).__init__()
 		self.latent1_size = latent1_size
 		self.latent2_size = latent2_size
+		#------------------------------------------------------------
+		self.model_name = name
+		self.checkpoint_dir = chkpt_dir
+		self.checkpoint_file = os.path.join(self.checkpoint_dir, name+'_sac')
 		#------------------------------------------------------------
 		self.compressor = Compressor()
 		self.decoder = Decoder()

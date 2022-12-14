@@ -6,12 +6,12 @@ import gym
 import numpy as np
 import collections
 from wrapped_gym_env import WrappedGymEnv
-from sac_agent import SacAgent
+from slac_agent import SlacAgent
 import matplotlib.pyplot as plt
 
 def main():
 	#simulation setting
-	load_checkpoint = True
+	load_checkpoint = False
 	activate_learning = True
 	activate_pre_learning_random_game = False
 	render_animation = False
@@ -20,16 +20,16 @@ def main():
 	num_random_episodes = 50
 	num_episodes = 10000
 	num_learning_iter = 10
-	figure_file = 'tmp/sac_cr.png'
+	figure_file = 'tmp/slac_cr.png'
 	#----------------------------------------------------------------
 	env = WrappedGymEnv(gym.make(env_name),4)	
-	sacAgent = SacAgent()
+	slacAgent = SlacAgent()
 	#----------------------------------------------------------------
 	best_score = env.reward_range[0]
 	score_history = [] #collections.deque(maxlen=100)
 	#----------------------------------------------------------------
 	if load_checkpoint:
-		sacAgent.load_models()
+		slacAgent.load_models()
 	#----------------------------------------------------------------
 	if activate_pre_learning_random_game:
 		for i in range(num_random_episodes):
@@ -42,7 +42,7 @@ def main():
 				next_observation, reward, step_type, done, info = env.step(action)
 				if render_animation:
 					env.render()
-				sacAgent.store_transition(observation, action, reward, step_type, done, next_observation)
+				slacAgent.store_transition(observation, action, reward, step_type, done, next_observation)
 				observation = next_observation
 				step += 1
 	#----------------------------------------------------------------
@@ -54,11 +54,11 @@ def main():
 			score = 0
 			step = 0
 			while not done:
-				action = sacAgent.choose_action(observation)
+				action = slacAgent.choose_action(observation)
 				next_observation, reward, step_type, done, info = env.step(action)
 				if render_animation:
 					env.render()
-				sacAgent.store_transition(observation, action, reward, step_type, done, next_observation)
+				slacAgent.store_transition(observation, action, reward, step_type, done, next_observation)
 				observation = next_observation
 				score += reward[0]
 				step += 1
@@ -70,11 +70,11 @@ def main():
 			print('episode ', i, 'score %.1f' % score, 'avg score %.1f' % avg_score)
 			if avg_score > best_score:
 				best_score = avg_score
-				#sacAgent.save_models()
+				slacAgent.save_models()
 			#------------------------------------------------------------
 			if activate_learning:
 				for _ in range(num_learning_iter):	
-					sacAgent.learn()
+					slacAgent.learn()
 	#----------------------------------------------------------------
 	finally:
 		plt.plot(range(len(score_history)),score_history)

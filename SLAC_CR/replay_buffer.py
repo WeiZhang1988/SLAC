@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 class ReplayBuffer:
-    def __init__(self, max_size=100000, observation_shape=(96,96,3), action_shape=(3,)):
+    def __init__(self, max_size=100000, observation_shape=(64,64,3), action_shape=(3,)):
         self.mem_size = max_size
         self.mem_cntr = 0
         #------------------------------------------------------------
@@ -25,17 +25,17 @@ class ReplayBuffer:
 		#------------------------------------------------------------
         self.mem_cntr += 1
 	#----------------------------------------------------------------
-    def sample_buffer(self, batch_size, sequence_length):
+    def sample_buffer(self, batch_size=256, sequence_length=8):
         max_mem = min(self.mem_cntr, self.mem_size)
 		#------------------------------------------------------------
         batch = np.random.choice(range(sequence_length, max_mem), batch_size, replace=False)
-        batches = np.array([batch-i for i in reversed(range(sequence_length+1))])
+        batches = np.transpose(np.array([batch-i for i in reversed(range(sequence_length+1))]))
 		#------------------------------------------------------------
-        observations = tf.convert_to_tensor(self.observation_memory[batches],dtype=tf.float32)
-        actions = tf.convert_to_tensor(self.action_memory[batches],dtype=tf.float32)
-        rewards = tf.convert_to_tensor(self.reward_memory[batches],dtype=tf.float32)
-        step_types = tf.convert_to_tensor(self.step_type_memory[batches],dtype=tf.float32)
-        dones = tf.convert_to_tensor(self.done_memory[batches],dtype=tf.float32)
-        next_observations = tf.convert_to_tensor(self.next_observation_memory[batches],dtype=tf.float32)
+        observations_seq = tf.convert_to_tensor(self.observation_memory[batches],dtype=tf.float32)
+        actions_seq = tf.convert_to_tensor(self.action_memory[batches],dtype=tf.float32)
+        rewards_seq = tf.convert_to_tensor(self.reward_memory[batches],dtype=tf.float32)
+        step_types_seq = tf.convert_to_tensor(self.step_type_memory[batches],dtype=tf.float32)
+        dones_seq = tf.convert_to_tensor(self.done_memory[batches],dtype=tf.float32)
+        next_observations_seq = tf.convert_to_tensor(self.next_observation_memory[batches],dtype=tf.float32)
 		#------------------------------------------------------------
-        return observations, actions, rewards, step_types, dones, next_observations
+        return observations_seq, actions_seq, rewards_seq, step_types_seq, dones_seq, next_observations_seq
