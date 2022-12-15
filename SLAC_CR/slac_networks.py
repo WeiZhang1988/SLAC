@@ -66,8 +66,8 @@ class CriticNetwork(keras.Model):
 		self.fc2 = keras.layers.Dense(self.fc2_dims, activation='relu')
 		self.critic = keras.layers.Dense(1, activation=None)
 	#----------------------------------------------------------------
-	def call(self, state, action):
-		fc1_output = self.fc1(tf.concat([state,action], axis=1))
+	def call(self, latent1, latent2, action):
+		fc1_output = self.fc1(tf.concat([latent1,action], axis=1))
 		fc2_output = self.fc2(fc1_output)
 		#------------------------------------------------------------
 		critic = self.critic(fc2_output)
@@ -115,6 +115,7 @@ class ActorNetwork(keras.Model):
 		else:
 			action = probabilities.sample()
 		log_prob = probabilities.log_prob(action)
+		log_prob = tf.expand_dims(log_prob,axis=-1)
 		#------------------------------------------------------------
 		action = tf.math.tanh(action)
 		log_probs = tf.math.log(1-tf.math.pow(action,2)+self.noise)
@@ -189,7 +190,7 @@ class Compressor(keras.layers.Layer):
 #--------------------------------------------------------------------
 class Decoder(keras.layers.Layer):
 	# in current use case, expected inputs are of shape [batch*sequence, 1, 1, depth], outputs are of shape [batch, sequence, 64, 64, 3]
-	def __init__(self,sigma=1.0):
+	def __init__(self,sigma=0.1):
 		super(Decoder, self).__init__()
 		self.sigma = sigma
 		self.transconv = TransConvLayer()

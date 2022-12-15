@@ -109,12 +109,13 @@ class SacAgent(object):
 			td_target = self.reward_scale_factor * rewards + (1.0 - tf.cast(dones, dtype=tf.float32)) * self.gamma * (target_critic - tf.exp(self.log_alpha) * next_new_policy_log_probs)
 			critic1_old_policy = self.critic_network1(observations, actions)
 			critic2_old_policy = self.critic_network2(observations, actions)
-			critic_network1_loss = 0.5 * keras.losses.MSE(critic1_old_policy, td_target)
-			critic_network2_loss = 0.5 * keras.losses.MSE(critic2_old_policy, td_target)
+			critic_network1_loss = 0.5 * tf.math.reduce_mean(tf.math.square(critic1_old_policy - td_target))
+			critic_network2_loss = 0.5 * tf.math.reduce_mean(tf.math.square(critic2_old_policy - td_target))
 		critic_network1_gradient = tape.gradient(critic_network1_loss, self.critic_network1.trainable_variables)
 		critic_network2_gradient = tape.gradient(critic_network2_loss, self.critic_network2.trainable_variables)
 		self.critic_network1.optimizer.apply_gradients(zip(critic_network1_gradient, self.critic_network1.trainable_variables))
 		self.critic_network2.optimizer.apply_gradients(zip(critic_network2_gradient, self.critic_network2.trainable_variables))
+		print("critic_network1_loss",critic_network1_loss)
 		#------------------------------------------------------------
 		with tf.GradientTape() as tape:
 			new_policy_actions, new_policy_log_probs = self.actor_network.sample_normal(observations)

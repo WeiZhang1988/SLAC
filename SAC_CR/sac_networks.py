@@ -104,6 +104,7 @@ class ActorNetwork(keras.Model):
 		else:
 			action = probabilities.sample()
 		log_prob = probabilities.log_prob(action)
+		log_prob = tf.expand_dims(log_prob,axis=-1)
 		#------------------------------------------------------------
 		action = tf.math.tanh(action)
 		log_probs = tf.math.log(1-tf.math.pow(action,2)+self.noise)

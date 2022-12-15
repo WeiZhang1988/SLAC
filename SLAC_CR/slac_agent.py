@@ -108,36 +108,37 @@ class SlacAgent(object):
 		observations_seq, actions_seq, rewards_seq, step_types_seq, dones_seq, next_observations_seq = \
 			self.replay_buffer.sample_buffer(self.batch_size)
 		observations, actions, rewards, step_types, dones, next_observations = \
-		observations_seq[-1], actions_seq[-1], rewards_seq[-1], step_types_seq[-1], dones_seq[-1], next_observations_seq[-1]
-		features_stop = tf.stop_gradient(self.model_network.compressor(observations))
-		next_features_stop = tf.stop_gradient(self.model_network.compressor(next_observations))
+		observations_seq[:,-2,:], actions_seq[:,-2,:], rewards_seq[:,-2,:], step_types_seq[:,-2,:], dones_seq[:,-2,:], next_observations_seq[:,-2,:]
 		#------------------------------------------------------------
+		(latent1_seq, latent2_seq), (_, _) = self.model_network.sample_posterior(observations_seq,actions_seq,step_types_seq)
+		next_features = self.model_network.compressor(observations_seq[:,-1,:])
 		with tf.GradientTape(persistent=True) as tape:
-			next_new_policy_actions, next_new_policy_log_probs = self.actor_network.sample_normal(next_features_stop)
-			target_critic1 = self.target_critic_network1(next_features_stop, next_new_policy_actions)
-			target_critic2 = self.target_critic_network2(next_features_stop, next_new_policy_actions)
+			next_new_policy_actions, next_new_policy_log_probs = self.actor_network.sample_normal(next_features)
+			target_critic1 = self.target_critic_network1(latent1_seq[:,-1,:], latent2_seq[:,-1,:], next_new_policy_actions)
+			target_critic2 = self.target_critic_network2(latent1_seq[:,-1,:], latent2_seq[:,-1,:], next_new_policy_actions)
 			target_critic = tf.minimum(target_critic1, target_critic2)
 			td_target = self.reward_scale_factor * rewards + (1.0 - tf.cast(dones, dtype=tf.float32)) * self.gamma * (target_critic - tf.exp(self.log_alpha) * next_new_policy_log_probs)
-			critic1_old_policy = self.critic_network1(features_stop, actions)
-			critic2_old_policy = self.critic_network2(features_stop, actions)
-			critic_network1_loss = 0.5 * keras.losses.MSE(critic1_old_policy, td_target)
-			critic_network2_loss = 0.5 * keras.losses.MSE(critic2_old_policy, td_target)
+			critic1_old_policy = self.critic_network1(latent1_seq[:,-2,:], latent2_seq[:,-2,:], actions_seq[:,-2,:])
+			critic2_old_policy = self.critic_network2(latent1_seq[:,-2,:], latent2_seq[:,-2,:], actions_seq[:,-2,:])
+			critic_network1_loss = 0.5 * tf.math.reduce_mean(tf.math.square(critic1_old_policy - td_target))
+			critic_network2_loss = 0.5 * tf.math.reduce_mean(tf.math.square(critic2_old_policy - td_target))
 		critic_network1_gradient = tape.gradient(critic_network1_loss, self.critic_network1.trainable_variables)
 		critic_network2_gradient = tape.gradient(critic_network2_loss, self.critic_network2.trainable_variables)
 		self.critic_network1.optimizer.apply_gradients(zip(critic_network1_gradient, self.critic_network1.trainable_variables))
 		self.critic_network2.optimizer.apply_gradients(zip(critic_network2_gradient, self.critic_network2.trainable_variables))
 		#------------------------------------------------------------
+		features = self.model_network.compressor(observations_seq[:,-2,:])
 		with tf.GradientTape() as tape:
-			new_policy_actions, new_policy_log_probs = self.actor_network.sample_normal(features_stop)
-			critic1_new_policy = self.critic_network1(features_stop, new_policy_actions)
-			critic2_new_policy = self.critic_network2(features_stop, new_policy_actions)
+			new_policy_actions, new_policy_log_probs = self.actor_network.sample_normal(features)
+			critic1_new_policy = self.critic_network1(latent1_seq[:,-2,:], latent2_seq[:,-2,:], new_policy_actions)
+			critic2_new_policy = self.critic_network2(latent1_seq[:,-2,:], latent2_seq[:,-2,:], new_policy_actions)
 			critic_new_policy = tf.math.minimum(critic1_new_policy, critic2_new_policy)
 			actor_network_loss = tf.math.reduce_mean(tf.exp(self.log_alpha) * new_policy_log_probs - critic_new_policy)
 		actor_network_gradient = tape.gradient(actor_network_loss, self.actor_network.trainable_variables)
 		self.actor_network.optimizer.apply_gradients(zip(actor_network_gradient, self.actor_network.trainable_variables))
 		#------------------------------------------------------------
 		with tf.GradientTape() as tape:
-			new_policy_actions, new_policy_log_probs = self.actor_network.sample_normal(features_stop)
+			new_policy_actions, new_policy_log_probs = self.actor_network.sample_normal(features)
 			alpha_loss = -tf.exp(self.log_alpha) * (new_policy_log_probs + self.target_entropy) 
 			alpha_loss = tf.nn.compute_average_loss(alpha_loss) 
 		alpha_gradient = tape.gradient(alpha_loss, [self.log_alpha])

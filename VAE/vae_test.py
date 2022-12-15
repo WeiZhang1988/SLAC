@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
+import tensorflow_probability as tfp
 import numpy as np
 from matplotlib import pyplot as plt 
 
@@ -73,7 +74,8 @@ class Decoder(layers.Layer):
     x = self.reshape(x)
     x = self.conv2dt1(x)
     x = self.conv2dt2(x)
-    return self.dense_output(x)
+    output = self.dense_output(x)
+    return tfp.distribution.Independent(distribution=tfd.Normal(loc=output, scale=1),reinterpreted_batch_ndims=3)
 
 
 class VariationalAutoEncoder(tf.keras.Model):
