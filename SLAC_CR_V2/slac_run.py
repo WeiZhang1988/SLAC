@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
 # Copyright (c) 2022: Wei ZHANG (wei_zhang_1988_outlook.com).
+#import os
+#os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  
+#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 import gym
 import numpy as np
@@ -11,7 +14,7 @@ import matplotlib.pyplot as plt
 
 def main():
 	#simulation setting
-	load_checkpoint = True
+	load_checkpoint = False
 	activate_learning = True
 	activate_pre_learning_random_game = False
 	render_animation = False
