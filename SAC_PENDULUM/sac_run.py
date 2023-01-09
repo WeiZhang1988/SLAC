@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 
 # Copyright (c) 2022: Wei ZHANG (wei_zhang_1988_outlook.com).
-#import os
-#os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  
-#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
+import os
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 import gym
 import numpy as np
 import collections
 from wrapped_gym_env import WrappedGymEnv
-from slac_agent import SlacAgent
+from sac_agent import SacAgent
 import matplotlib.pyplot as plt
 
 def main():
@@ -18,21 +19,21 @@ def main():
 	activate_learning = True
 	activate_pre_learning_random_game = False
 	render_animation = False
-	env_name = "CarRacing-v1"
+	env_name = "Pendulum-v1" # "CarRacing-v1"
 	#hyper parameters
 	num_random_episodes = 50
-	num_episodes = 20000
+	num_episodes = 5000
 	num_learning_iter = 10
-	figure_file = 'tmp/slac_cr.png'
+	figure_file = 'tmp/sac_cr.png'
 	#----------------------------------------------------------------
-	env = WrappedGymEnv(gym.make(env_name),4)	
-	slacAgent = SlacAgent()
+	env = WrappedGymEnv(gym.make(env_name))	
+	sacAgent = SacAgent()
 	#----------------------------------------------------------------
 	best_score = env.reward_range[0]
 	score_history = [] #collections.deque(maxlen=100)
 	#----------------------------------------------------------------
 	if load_checkpoint:
-		slacAgent.load_models()
+		sacAgent.load_models()
 	#----------------------------------------------------------------
 	if activate_pre_learning_random_game:
 		for i in range(num_random_episodes):
@@ -45,7 +46,7 @@ def main():
 				next_observation, reward, step_type, done, info = env.step(action)
 				if render_animation:
 					env.render()
-				slacAgent.store_transition(observation, action, reward, step_type, done, next_observation)
+				sacAgent.store_transition(observation, action, reward, step_type, done, next_observation)
 				observation = next_observation
 				step += 1
 	#----------------------------------------------------------------
@@ -57,11 +58,11 @@ def main():
 			score = 0
 			step = 0
 			while not done:
-				action = slacAgent.choose_action(observation)
+				action = sacAgent.choose_action(observation)
 				next_observation, reward, step_type, done, info = env.step(action)
 				if render_animation:
 					env.render()
-				slacAgent.store_transition(observation, action, reward, step_type, done, next_observation)
+				sacAgent.store_transition(observation, action, reward, step_type, done, next_observation)
 				observation = next_observation
 				score += reward[0]
 				step += 1
@@ -73,11 +74,11 @@ def main():
 			print('episode ', i, 'score %.1f' % score, 'avg score %.1f' % avg_score)
 			if avg_score > best_score:
 				best_score = avg_score
-				slacAgent.save_models()
+				sacAgent.save_models()
 			#------------------------------------------------------------
 			if activate_learning:
 				for _ in range(num_learning_iter):	
-					slacAgent.learn()
+					sacAgent.learn()
 	#----------------------------------------------------------------
 	finally:
 		plt.plot(range(len(score_history)),score_history)

@@ -1,4 +1,6 @@
 /SAC_CR/tmp/*
 /SLAC_CR/tmp/*
 /SLAC_CR_V2/tmp/*
-/SAC_PENDULUM/*
+/SAC_PENDULUM/tmp/*
+/PPO_PENDULUM/tmp/*
+/PPO_MCC/tmp/*
