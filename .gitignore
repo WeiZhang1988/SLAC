@@ -4,3 +4,5 @@
 /SAC_PENDULUM/tmp/*
 /PPO_PENDULUM/tmp/*
 /PPO_MCC/tmp/*
+/TRANSFORMER/checkpoints/*
+/VISION_TRANSFORMER/flower_photos/*
