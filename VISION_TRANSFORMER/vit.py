@@ -113,10 +113,12 @@ class TransformerEncoder(Layer):
         y = self.dropout(x)
         return y
 
-def create_VisionTransformer(num_classes, num_patches=196, projection_dim=768, input_shape=(224, 224, 3)):
+def create_VisionTransformer(num_classes, num_patches=196, \
+    projection_dim=768, input_shape=(224, 224, 3)):
     inputs = Input(shape=input_shape)
+    normalized_inputs = tf.keras.layers.Rescaling(1./255)(inputs)
     # Patch extractor
-    patches = PatchExtractor()(inputs)
+    patches = PatchExtractor()(normalized_inputs)
     # Patch encoder
     patches_embed = PatchEncoder(num_patches, projection_dim)(patches)
     # Transformer encoder
@@ -214,8 +216,8 @@ def exam_loaded_dataset(train_ds, val_ds):
         print(image_batch.shape)
         print(labels_batch.shape)
         break
-
-if __name__ == "__main__":
+        
+def train_vit():
     batch = 32
     img_height = 224
     img_width = 224
@@ -227,3 +229,7 @@ if __name__ == "__main__":
     loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),\
     metrics=['accuracy'])
     model.fit(train_ds,validation_data=val_ds,epochs=3)
+
+if __name__ == "__main__":
+    #validate_above_code()
+    train_vit()
