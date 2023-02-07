@@ -1,3 +1,5 @@
+import numpy as np
+import time
 import gym
 import carla_env
 
@@ -10,6 +12,9 @@ params ={
 }
 
 env = gym.make('CarlaEnv-v0', params=params)
-env.reset()
-env.step([0])
+obs = env.reset()
+while True:
+    env.display()
+    action=(np.array([0.8,0.0,0.0]),np.array([False]))
+    obs, r, d, inf = env.step(action)
 env.close()
