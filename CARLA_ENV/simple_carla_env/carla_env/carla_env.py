@@ -1,4 +1,5 @@
 import numpy as np
+import sys
 import pygame
 import random
 import time
@@ -61,6 +62,10 @@ class DisplayManager:
                 self.get_display_offset(s.display_pos))
         self.display.blit(self.bev.surface, \
         self.get_display_offset(self.bev.display_pos))
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
         pygame.display.flip()
             
     def clear(self):
@@ -352,7 +357,6 @@ class CarlaEnv(gym.Env):
             self.ego_vehicle = \
             self.world.try_spawn_actor(ego_vehicle_bp, \
             random.choice(self.spawn_points))
-        print("out of ego loop")
         self.vehicle_list.append(self.ego_vehicle)
         
         self.left_camera = SensorManager(self.world, 'RGBCamera', \
@@ -428,7 +432,6 @@ class CarlaEnv(gym.Env):
                 vehicle_tmp_ref = \
                 self.world.try_spawn_actor(random.choice(vehicle_bps), \
                 random.choice(self.spawn_points))
-            print("out of vehicle loop")
             vehicle_tmp_ref.set_autopilot()
             self.vehicle_list.append(vehicle_tmp_ref)
         
@@ -437,11 +440,7 @@ class CarlaEnv(gym.Env):
         filter('walker.*')
         for pedestrian_bp in pedestrian_bps:
             if pedestrian_bp.has_attribute('is_invincible'):
-                pedestrian_bp.set_attribute('is_invincib
-                
-                
-                
-                le','false')
+                pedestrian_bp.set_attribute('is_invincible','false')
         for _ in range(self.num_pedestrians): 
             pedestrian_tmp_ref = None
             while pedestrian_tmp_ref is None:
@@ -453,7 +452,6 @@ class CarlaEnv(gym.Env):
                 self.world.try_spawn_actor(\
                 random.choice(pedestrian_bps), \
                 pedestrian_spawn_transform)
-            print("out of pedestrian loop")
             pedestrian_controller_bp = \
             self.world.get_blueprint_library().\
             find('controller.ai.walker')

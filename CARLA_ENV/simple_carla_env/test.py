@@ -10,8 +10,8 @@ params ={
 'grid_size': [2,3],
 'sync': True,
 'ego_filter': 'vehicle.*',
-'num_vehicles': 10,
-'num_pedestrians': 10,
+'num_vehicles': 20,
+'num_pedestrians': 20,
 }
 
 env = gym.make('CarlaEnv-v0', params=params)
