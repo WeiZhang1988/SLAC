@@ -5,6 +5,7 @@
 import glob
 import os
 import sys
+import numpy as np
 import carla
 from carla import TrafficLightState as tls
 
@@ -633,6 +634,8 @@ class MapImage(object):
 # ==============================================================================
 # -- BirdEyeView ----------------------------------------------------------------
 # ==============================================================================
+
+
 class BirdEyeView(object):
     def __init__(self, world, pixels_per_meter, pixels_ahead_vehicle, \
     display_size, display_pos, hero_actor):
@@ -644,6 +647,7 @@ class BirdEyeView(object):
         self.server_clock = pygame.time.Clock()
         self.surface = pygame.Surface(display_size).convert()
         self.surface.set_colorkey(COLOR_BLACK)
+        self.measure_data = None
         
         # World data
         self.town_map = self.world.get_map()
@@ -689,6 +693,7 @@ class BirdEyeView(object):
     def destroy(self):
         self.server_clock = None
         self.surface = None
+        self.measure_data = None
 
         self.town_map = None
         self.actors_with_transforms = []
@@ -871,7 +876,7 @@ class BirdEyeView(object):
         self.actors_surface.set_clip(clipping_rect)
         self.result_surface.set_clip(clipping_rect)
         
-    def update(self):
+    def update_bird_eye_view(self):
         # clock tick
         self.tick(self.server_clock)
         
@@ -932,3 +937,5 @@ class BirdEyeView(object):
         rotation_pivot = rotated_result_surface.get_rect(center=center)
         self.surface.blit(rotated_result_surface, rotation_pivot)
 
+        self.measure_data = \
+        np.array(pygame.surfarray.array3d(self.surface)).swapaxes(0,1)

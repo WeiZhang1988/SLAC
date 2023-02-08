@@ -65,11 +65,7 @@ class DisplayManager:
             
     def clear(self):
         self.sensor_list = []
-    
-    def destroy(self):
-        for s in self.sensor_list:
-            s.destroy()
-        self.bev.destroy()
+        self.bev = None
 
 class SensorManager:
     def __init__(self, world, sensor_type, transform, attached, \
@@ -240,15 +236,18 @@ class CarlaEnv(gym.Env):
         self.window_resolution = params['window_resolution']
         self.grid_size = params['grid_size']
         self.sync = params['sync']
+        self.ego_filter = params['ego_filter']
+        self.num_vehicles = params['num_vehicles']
+        self.num_pedestrians = params['num_pedestrians']
         # connet to server
         self.client = carla.Client('localhost',self.carla_port)
-        self.client.set_timeout(5.0)
+        self.client.set_timeout(10.0)
         # get world and map
         self.world = self.client.get_world()
         self.world = self.client.load_world(self.map_name)
         self.spectator = self.world.get_spectator()
         self.map = self.world.get_map()
-        print("Now we choose the map '{}'".format(self.map))
+        self.spawn_points = self.map.get_spawn_points()
         self.original_settings = self.world.get_settings()
         if self.sync:
             traffic_manager = self.client.get_trafficmanager(8000)
@@ -258,13 +257,15 @@ class CarlaEnv(gym.Env):
             settings.fixed_delta_seconds = 0.05
             self.world.apply_settings(settings)
         
+        self.ego_vehicle = None
         self.display_manager = DisplayManager(self.grid_size, \
         self.window_resolution)
         self.display_size = self.display_manager.get_display_size()
         self.vehicle_list = []
-        self.pedestrian_list = []
         self.sensor_list = []
         self.bev = None
+        self.pedestrian_list = []
+        self.pedestrian_controller_list = []
         
         # acc and brake percentage, steering percentage, and reverse flag
         self.action_space = Tuple((Box(np.array([0.0, 0.0, -1.0]), 1.0, \
@@ -301,7 +302,7 @@ class CarlaEnv(gym.Env):
         self.ego_vehicle.apply_control(act)
         
         self.world.tick()
-        self.bev.update()
+        self.bev.update_bird_eye_view()
         
         observation = {
             'left_camera' : self.left_camera.measure_data,
@@ -311,6 +312,7 @@ class CarlaEnv(gym.Env):
             'lidar': self.lidar.measure_data,
             'gnss': self.gnss.measure_data,
             'imu': self.imu.measure_data,
+            'bev': self.bev.measure_data,
         }
         
         reward = 0
@@ -325,26 +327,32 @@ class CarlaEnv(gym.Env):
         return observation,reward,done,info
     
     def reset(self):
-        for v in self.vehicle_list:
-            if v.is_alive:
-                v.destroy()
-        for p in self.pedestrian_list:
-            if p.is_alive:
-                p.destroy()
-        for s in self.sensor_list:
-            if s.is_alive:
-                s.destroy()
-        if self.bev is not None:
-            self.bev.destroy()
-        self.vehicle_list = []
-        self.pedestrian_list = []
-        self.sensor_list = []
-        self.display_manager.clear()
-
-        ego_vehicle_bp = self.world.get_blueprint_library().\
-        filter('charger_2020')[0]
-        self.ego_vehicle = self.world.spawn_actor(ego_vehicle_bp, \
-        random.choice(self.world.get_map().get_spawn_points()))
+        self.remove_all_actors()
+        self.create_all_actors()
+    
+        observation = {
+            'left_camera' : self.left_camera.measure_data,
+            'front_camera': self.front_camera.measure_data,
+            'right_camera': self.right_camera.measure_data,
+            'rear_camera' : self.rear_camera.measure_data,
+            'lidar': self.lidar.measure_data,
+            'gnss': self.gnss.measure_data,
+            'imu': self.imu.measure_data,
+        }
+        return observation
+        
+    def create_all_actors(self):
+        # create ego vehicle
+        ego_vehicle_bp = \
+        random.choice([bp for bp in self.world.get_blueprint_library().\
+        filter(self.ego_filter) \
+        if int(bp.get_attribute('number_of_wheels'))==4])
+        
+        while self.ego_vehicle is None:
+            self.ego_vehicle = \
+            self.world.try_spawn_actor(ego_vehicle_bp, \
+            random.choice(self.spawn_points))
+        print("out of ego loop")
         self.vehicle_list.append(self.ego_vehicle)
         
         self.left_camera = SensorManager(self.world, 'RGBCamera', \
@@ -409,19 +417,82 @@ class CarlaEnv(gym.Env):
         transform.rotation.pitch -= 90
         self.spectator.set_transform(transform)
         
-        observation = {
-            'left_camera' : self.left_camera.measure_data,
-            'front_camera': self.front_camera.measure_data,
-            'right_camera': self.right_camera.measure_data,
-            'rear_camera' : self.rear_camera.measure_data,
-            'lidar': self.lidar.measure_data,
-            'gnss': self.gnss.measure_data,
-            'imu': self.imu.measure_data,
-        }
-        return observation
+        # create other vehicles
+        vehicle_bps = self.world.get_blueprint_library().\
+        filter('vehicle.*')
+        for vehicle_bp in vehicle_bps:
+            vehicle_bp.set_attribute('role_name', 'autopilot')
+        for _ in range(self.num_vehicles):
+            vehicle_tmp_ref = None
+            while vehicle_tmp_ref is None:
+                vehicle_tmp_ref = \
+                self.world.try_spawn_actor(random.choice(vehicle_bps), \
+                random.choice(self.spawn_points))
+            print("out of vehicle loop")
+            vehicle_tmp_ref.set_autopilot()
+            self.vehicle_list.append(vehicle_tmp_ref)
+        
+        # create pedestrians
+        pedestrian_bps = self.world.get_blueprint_library().\
+        filter('walker.*')
+        for pedestrian_bp in pedestrian_bps:
+            if pedestrian_bp.has_attribute('is_invincible'):
+                pedestrian_bp.set_attribute('is_invincib
+                
+                
+                
+                le','false')
+        for _ in range(self.num_pedestrians): 
+            pedestrian_tmp_ref = None
+            while pedestrian_tmp_ref is None:
+                pedestrian_spawn_transform = carla.Transform()  
+                loc = self.world.get_random_location_from_navigation()  
+                if (loc != None):
+                    pedestrian_spawn_transform.location = loc 
+                pedestrian_tmp_ref = \
+                self.world.try_spawn_actor(\
+                random.choice(pedestrian_bps), \
+                pedestrian_spawn_transform)
+            print("out of pedestrian loop")
+            pedestrian_controller_bp = \
+            self.world.get_blueprint_library().\
+            find('controller.ai.walker')
+            pedestrian_controller_actor = \
+            self.world.spawn_actor(pedestrian_controller_bp, \
+            carla.Transform(), pedestrian_tmp_ref)
+            pedestrian_controller_actor.start()
+            pedestrian_controller_actor.go_to_location( \
+            self.world.get_random_location_from_navigation())
+            pedestrian_controller_actor.set_max_speed(1.0 + \
+            random.random())
+            self.pedestrian_list.append(pedestrian_tmp_ref)
+            self.pedestrian_controller_list.append( \
+            pedestrian_controller_actor)
+    
+    def remove_all_actors(self):
+        for s in self.sensor_list:
+            if s.is_alive:
+                s.destroy()
+        for v in self.vehicle_list:
+            if v.is_alive:
+                v.destroy()
+        for c in self.pedestrian_controller_list:
+            if c.is_alive:
+                c.stop()
+                c.destroy()
+        for p in self.pedestrian_list:
+            if p.is_alive:
+                p.destroy()
+        
+        if self.bev is not None:
+            self.bev.destroy()
+        self.vehicle_list = []
+        self.sensor_list = []
+        self.bev = None
+        self.pedestrian_list = []
+        self.pedestrian_controller_list = []
+        self.display_manager.clear()
     
     def display(self):
         self.display_manager.render()
     
-    def close(self):
-        self.display_manager.destroy()

@@ -9,6 +9,9 @@ params ={
 'window_resolution': [1280,720],
 'grid_size': [2,3],
 'sync': True,
+'ego_filter': 'vehicle.*',
+'num_vehicles': 10,
+'num_pedestrians': 10,
 }
 
 env = gym.make('CarlaEnv-v0', params=params)
