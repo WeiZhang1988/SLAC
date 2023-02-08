@@ -89,7 +89,9 @@ COLOR_ALUMINIUM_4 = pygame.Color(85, 87, 83)
 COLOR_ALUMINIUM_4_5 = pygame.Color(66, 62, 64)
 COLOR_ALUMINIUM_5 = pygame.Color(46, 52, 54)
 
-
+COLOR_RED   = pygame.Color(255, 0, 0)
+COLOR_GREEN = pygame.Color(0, 255, 0)
+COLOR_BLUE  = pygame.Color(0, 0, 255)
 COLOR_WHITE = pygame.Color(255, 255, 255)
 COLOR_BLACK = pygame.Color(0, 0, 0)
 
@@ -258,7 +260,7 @@ class MapImage(object):
 
     def draw_road_map(self, map_surface, carla_world, carla_map, world_to_pixel, world_to_pixel_width):
         """Draws all the roads, including lane markings, arrows and traffic signs"""
-        map_surface.fill(COLOR_ALUMINIUM_4)
+        map_surface.fill(COLOR_RED)#COLOR_ALUMINIUM_4)
         precision = 0.05
 
         def lane_marking_color_to_tango(lane_marking_color):
@@ -503,8 +505,8 @@ class MapImage(object):
 
                 # Draw Shoulders, Parkings and Sidewalks
                 PARKING_COLOR = COLOR_ALUMINIUM_4_5
-                SHOULDER_COLOR = COLOR_ALUMINIUM_5
-                SIDEWALK_COLOR = COLOR_ALUMINIUM_3
+                SHOULDER_COLOR = COLOR_RED#COLOR_ALUMINIUM_5
+                SIDEWALK_COLOR = COLOR_RED#COLOR_ALUMINIUM_3
 
                 shoulder = [[], []]
                 parking = [[], []]
@@ -819,7 +821,7 @@ class BirdEyeView(object):
     
     def render_walkers(self, surface, list_w, world_to_pixel):
         for w in list_w:
-            color = COLOR_PLUM_0
+            color = COLOR_RED#COLOR_PLUM_0
             
             # Compute bounding box points
             bb = w[0].bounding_box.extent
@@ -834,11 +836,11 @@ class BirdEyeView(object):
             
     def render_vehicles(self, surface, list_v, world_to_pixel):
         for v in list_v:
-            color = COLOR_SKY_BLUE_0
+            color = COLOR_SCARLET_RED_1#COLOR_SKY_BLUE_0
             if int(v[0].attributes['number_of_wheels']) == 2:
-                color = COLOR_CHOCOLATE_1
+                color = COLOR_RED#COLOR_CHOCOLATE_1
             if v[0].attributes['role_name'] == 'hero':
-                color = COLOR_CHAMELEON_0
+                color = COLOR_BLUE#COLOR_CHAMELEON_0
             # Compute bounding box points
             bb = v[0].bounding_box.extent
             corners = [carla.Location(x=-bb.x, y=-bb.y), \

@@ -167,6 +167,10 @@ class SensorManager:
     def get_sensor(self):
         return self.sensor
         
+    def destroy_sensor(self):
+        if self.sensor.is_alive:
+            self.sensor.destroy
+        
     def save_rgb_image(self, image):
         t_start = self.timer.time()
         
@@ -352,6 +356,7 @@ class CarlaEnv(gym.Env):
         random.choice([bp for bp in self.world.get_blueprint_library().\
         filter(self.ego_filter) \
         if int(bp.get_attribute('number_of_wheels'))==4])
+        ego_vehicle_bp.set_attribute('role_name','hero')
         
         while self.ego_vehicle is None:
             self.ego_vehicle = \
@@ -469,8 +474,8 @@ class CarlaEnv(gym.Env):
     
     def remove_all_actors(self):
         for s in self.sensor_list:
-            if s.is_alive:
-                s.destroy()
+            s.destroy_sensor()
+        self.ego_vehicle = None
         for v in self.vehicle_list:
             if v.is_alive:
                 v.destroy()
