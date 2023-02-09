@@ -161,6 +161,16 @@ class SensorManager:
             imu.listen(self.save_imu_msg)
             return imu
             
+        elif sensor_type == 'Collision':
+            collision_bp = \
+            self.world.get_blueprint_library().\
+            find('sensor.other.collision')
+            for key in sensor_options:
+                collision_bp.set_attribute(key, sensor_options[key])
+            collision = self.world.spawn_actor(collision_bp, \
+            transform, attach_to=attached)
+            collision.listen(self.save_collision_msg)
+            
         else:
             return None
             
@@ -201,8 +211,9 @@ class SensorManager:
         lidar_data = lidar_data.astype(np.int32)
         lidar_img_size = (self.display_size[0], self.display_size[1], 3)
         lidar_img = np.zeros((lidar_img_size), dtype=np.uint8)
-        
-        lidar_img[tuple(lidar_data.T)] = (255, 255, 255)
+
+        lidar_img[tuple(lidar_data.T)] = (0, 255, 0) 
+
         self.measure_data = lidar_img
         self.surface = pygame.surfarray.make_surface(lidar_img)
         
@@ -213,10 +224,38 @@ class SensorManager:
     def save_radar_image(self, radar_data):
         t_start = self.timer.time()
         
-        points = np.frombuffer(radar_data.raw_data, dtype=np.dtype('f4'))
-        points = np.reshape(points, (len(radar_data), 4))
-        self.measure_data = points
+        radar_range = 1.0 * float(self.sensor_options['range'])
+        radar_scale = min(self.display_size) / radar_range
+        radar_offset = min(self.display_size) / 2.0
+        
+        self.surface = pygame.Surface(self.display_size).convert()
+        self.surface.fill(pygame.Color(0,0,0))
+        current_rot = radar_data.transform.rotation
+        for detect in radar_data:
+            alt = detect.altitude
+            azi = detect.azimuth
+            dpt = detect.depth
+            x = dpt * np.cos(alt) * np.cos(azi)
+            y = dpt * np.cos(alt) * np.sin(azi)
+            z = dpt * np.sin(alt)
+            
+            center_point = \
+            pygame.math.Vector2(x * radar_scale, \
+            y * radar_scale + radar_offset)
 
+            def clamp(min_v, max_v, value):
+                return max(min_v, min(value, max_v))
+
+            velocity_limit = 10.0
+            norm_velocity = detect.velocity / velocity_limit
+            r = int(clamp(0.0, 1.0, 1.0 - norm_velocity) * 255.0)
+            g = int(clamp(0.0, 1.0, 1.0 - abs(norm_velocity)) * 255.0)
+            b = int(abs(clamp(- 1.0, 0.0, - 1.0 - norm_velocity)) * 255.0)
+            pygame.draw.circle(self.surface,pygame.Color(r,g,b),\
+            center_point,5)
+
+        self.measure_data = pygame.surfarray.array3d(self.surface)
+        
         t_end = self.timer.time()
         self.time_processing += (t_end-t_start)
         self.tics_processing += 1
@@ -236,6 +275,12 @@ class SensorManager:
         imu_msg.gyroscope.z])
         cmpa = np.array([imu_msg.compass])
         self.measure_data = (acc, gyro, cmpa)
+        
+    def save_collision_msg(self, collision_msg):
+        myself  = collision_msg.actor.type_id
+        other   = collision_msg.other_actor.type_id
+        impulse = collision_msg.normal_impulse
+        self.measure_data = (myself, other, impulse)
 
 class CarlaEnv(gym.Env):
     def __init__(self, params):
@@ -276,6 +321,14 @@ class CarlaEnv(gym.Env):
         self.pedestrian_list = []
         self.pedestrian_controller_list = []
         
+        target_pos_vector = random.choice(self.spawn_points)
+        self.target_pos = np.array([
+        target_pos_vector.location.x, 
+        target_pos_vector.location.y, 
+        target_pos_vector.location.z])
+        self.reward = 0.0
+        self.done = False
+        
         # acc and brake percentage, steering percentage, and reverse flag
         self.action_space = Tuple((Box(np.array([0.0, 0.0, -1.0]), 1.0, \
         shape=(3,), dtype=np.float32), Discrete(2)))
@@ -289,14 +342,18 @@ class CarlaEnv(gym.Env):
             self.display_size[1], 3), dtype=np.uint8),
             'rear_camera': Box(0, 255, shape=(self.display_size[0], \
             self.display_size[1], 3), dtype=np.uint8),
-            'lidar': Box(0, 255, shape=(self.display_size[0], \
+            'lidar_image': Box(0, 255, shape=(self.display_size[0], \
+            self.display_size[1], 3), dtype=np.uint8),
+            'radar_image': Box(0, 255, shape=(self.display_size[0], \
             self.display_size[1], 3), dtype=np.uint8),
             'gnss': Box(-np.inf, np.inf, shape=(3,), dtype=np.float32), 
             'imu': Tuple((\
             Box(-np.inf, np.inf, shape=(3,), dtype=np.float32), \
             Box(-np.inf, np.inf, shape=(3,), dtype=np.float32), \
             Box(-np.inf, np.inf, shape=(1,), dtype=np.float32), \
-            )) 
+            )),
+            'target_pos' : Box(-np.inf, np.inf, shape=(3,), \
+            dtype=np.float32)
         })
     
     def step(self,action):
@@ -313,19 +370,9 @@ class CarlaEnv(gym.Env):
         self.world.tick()
         self.bev.update_bird_eye_view()
         
-        observation = {
-            'left_camera' : self.left_camera.measure_data,
-            'front_camera': self.front_camera.measure_data,
-            'right_camera': self.right_camera.measure_data,
-            'rear_camera' : self.rear_camera.measure_data,
-            'lidar': self.lidar.measure_data,
-            'gnss': self.gnss.measure_data,
-            'imu': self.imu.measure_data,
-            'bev': self.bev.measure_data,
-        }
-        
-        reward = 0
-        done = False
+        # deal with reward and done
+        self.reward = 0
+        self.done = False
         info = {}
         
         transform = self.ego_vehicle.get_transform()
@@ -333,21 +380,46 @@ class CarlaEnv(gym.Env):
         transform.rotation.pitch -= 90
         self.spectator.set_transform(transform)
         
+        observation = {
+        'left_camera' : self.left_camera.measure_data,
+        'front_camera': self.front_camera.measure_data,
+        'right_camera': self.right_camera.measure_data,
+        'rear_camera' : self.rear_camera.measure_data,
+        'lidar_image' : self.lidar.measure_data,
+        'radar_image' : self.radar.measure_data,
+        'gnss': self.gnss.measure_data,
+        'imu': self.imu.measure_data,
+        'bev': self.bev.measure_data,
+        'trgt_pos' : self.target_pos,
+        }
+        
         return observation,reward,done,info
     
     def reset(self):
         self.remove_all_actors()
         self.create_all_actors()
-    
+
+        target_pos_vector = random.choice(self.spawn_points)
+        self.target_pos = np.array([
+        target_pos_vector.location.x, 
+        target_pos_vector.location.y, 
+        target_pos_vector.location.z])
+        self.reward = 0.0
+        self.done = False
+        
         observation = {
-            'left_camera' : self.left_camera.measure_data,
-            'front_camera': self.front_camera.measure_data,
-            'right_camera': self.right_camera.measure_data,
-            'rear_camera' : self.rear_camera.measure_data,
-            'lidar': self.lidar.measure_data,
-            'gnss': self.gnss.measure_data,
-            'imu': self.imu.measure_data,
+        'left_camera' : self.left_camera.measure_data,
+        'front_camera': self.front_camera.measure_data,
+        'right_camera': self.right_camera.measure_data,
+        'rear_camera' : self.rear_camera.measure_data,
+        'lidar_image' : self.lidar.measure_data,
+        'radar_image' : self.radar.measure_data,
+        'gnss': self.gnss.measure_data,
+        'imu': self.imu.measure_data,
+        'bev': self.bev.measure_data,
+        'trgt_pos' : self.target_pos,
         }
+        
         return observation
         
     def create_all_actors(self):
@@ -395,17 +467,31 @@ class CarlaEnv(gym.Env):
         self.top_camera = SensorManager(self.world, 'RGBCamera', \
         carla.Transform(carla.Location(x=0, z=6), \
         carla.Rotation(pitch=-90)), self.ego_vehicle, {}, \
-        self.display_size, [1, 2])
+        self.display_size, [2, 1])
         self.sensor_list.append(self.top_camera)
         self.display_manager.add_sensor(self.top_camera)
         
         self.lidar = SensorManager(self.world, 'LiDAR', \
         carla.Transform(carla.Location(x=0, z=2.4)), self.ego_vehicle, \
-        {'channels' : '64', 'range' : '100',  \
+        {'channels' : '64', 'range' : '10.0',  \
         'points_per_second': '250000', 'rotation_frequency': '20'}, \
         self.display_size, [1, 0])
         self.sensor_list.append(self.lidar)
         self.display_manager.add_sensor(self.lidar)
+        
+        bound_x = 0.5 + self.ego_vehicle.bounding_box.extent.x
+        bound_y = 0.5 + self.ego_vehicle.bounding_box.extent.y
+        bound_z = 0.5 + self.ego_vehicle.bounding_box.extent.z
+        self.radar = SensorManager(self.world, 'Radar', \
+        carla.Transform(\
+        carla.Location(x=bound_x + 0.05, z=bound_z+0.05), \
+        carla.Rotation(pitch=5)), \
+        self.ego_vehicle, \
+        {'horizontal_fov' : '35', 'vertical_fov' : '20', \
+        'range' : '20.0'}, \
+        self.display_size, [1, 2])
+        self.sensor_list.append(self.radar)
+        self.display_manager.add_sensor(self.radar)
         
         self.gnss = SensorManager(self.world, 'GNSS', \
         carla.Transform(), self.ego_vehicle, {}, None, None)
@@ -417,9 +503,13 @@ class CarlaEnv(gym.Env):
         
         self.bev = BirdEyeView(self.world, \
         PIXELS_PER_METER, PIXELS_AHEAD_VEHICLE, \
-        self.display_size, [1, 2], \
+        self.display_size, [2, 0], \
         self.ego_vehicle)
         self.display_manager.add_birdeyeview(self.bev)
+        
+        self.collision = SensorManager(self.world, 'Collision', \
+        carla.Transform(), self.ego_vehicle, {}, None, None)
+        self.sensor_list.append(self.collision)
 
         transform = self.ego_vehicle.get_transform()
         transform.location.z += 10

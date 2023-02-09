@@ -6,8 +6,8 @@ import carla_env
 params ={
 'carla_port': 2000,
 'map_name': 'Town01',
-'window_resolution': [1280,720],
-'grid_size': [2,3],
+'window_resolution': [1280,1080],
+'grid_size': [3,3],
 'sync': True,
 'ego_filter': 'vehicle.*',
 'num_vehicles': 20,

@@ -97,7 +97,7 @@ COLOR_BLACK = pygame.Color(0, 0, 0)
 
 # Macro Defines
 PIXELS_PER_METER = 12
-PIXELS_AHEAD_VEHICLE = 150
+PIXELS_AHEAD_VEHICLE = 50#150
 
 
 # ==============================================================================
@@ -838,7 +838,7 @@ class BirdEyeView(object):
         for v in list_v:
             color = COLOR_SCARLET_RED_1#COLOR_SKY_BLUE_0
             if int(v[0].attributes['number_of_wheels']) == 2:
-                color = COLOR_RED#COLOR_CHOCOLATE_1
+                color = COLOR_SCARLET_RED_2#COLOR_CHOCOLATE_1
             if v[0].attributes['role_name'] == 'hero':
                 color = COLOR_BLUE#COLOR_CHAMELEON_0
             # Compute bounding box points
@@ -852,8 +852,9 @@ class BirdEyeView(object):
             
             v[1].transform(corners)
             corners = [world_to_pixel(p) for p in corners]
-            pygame.draw.lines(surface, color, False, corners, \
-            int(math.ceil(4.0 * self.map_image.scale)))
+            #pygame.draw.lines(surface, color, False, corners, \
+            #int(math.ceil(4.0 * self.map_image.scale)))
+            pygame.draw.polygon(surface, color, corners)
             
     def render_actors(self, surface, vehicles, traffic_lights, speed_limits, walkers):
         # Static actors
