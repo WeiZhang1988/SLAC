@@ -170,6 +170,18 @@ class SensorManager:
             collision = self.world.spawn_actor(collision_bp, \
             transform, attach_to=attached)
             collision.listen(self.save_collision_msg)
+            return collision
+            
+        elif sensor_type == 'Lane_invasion':
+            lane_invasion_bp = \
+            self.world.get_blueprint_library().\
+            find('sensor.other.lane_invasion')
+            for key in sensor_options:
+                lane_invasion_bp.set_attribute(key, sensor_options[key])
+            lane_invasion = self.world.spawn_actor(lane_invasion_bp, \
+            transform, attach_to=attached)
+            lane_invasion.listen(self.save_lane_invasion_msg)
+            return lane_invasion
             
         else:
             return None
@@ -277,10 +289,13 @@ class SensorManager:
         self.measure_data = (acc, gyro, cmpa)
         
     def save_collision_msg(self, collision_msg):
-        myself  = collision_msg.actor.type_id
-        other   = collision_msg.other_actor.type_id
-        impulse = collision_msg.normal_impulse
-        self.measure_data = (myself, other, impulse)
+        self.measure_data = True
+        
+    def save_lane_invasion_msg(self, lane_invasion_msg):
+        list_type = \
+        list(set(x.type for x in \
+        lane_invasion_msg.crossed_lane_markings))
+        self.measure_data = str(list_type[-1])
 
 class CarlaEnv(gym.Env):
     def __init__(self, params):
@@ -308,7 +323,7 @@ class CarlaEnv(gym.Env):
             settings = self.world.get_settings()
             traffic_manager.set_synchronous_mode(True)
             settings.synchronous_mode = True
-            settings.fixed_delta_seconds = 0.05
+            settings.fixed_delta_seconds = 0.1
             self.world.apply_settings(settings)
         
         self.ego_vehicle = None
@@ -321,11 +336,9 @@ class CarlaEnv(gym.Env):
         self.pedestrian_list = []
         self.pedestrian_controller_list = []
         
-        target_pos_vector = random.choice(self.spawn_points)
-        self.target_pos = np.array([
-        target_pos_vector.location.x, 
-        target_pos_vector.location.y, 
-        target_pos_vector.location.z])
+        self.target_pos_vector = None
+        self.target_pos = None
+        self.current_step = 0
         self.reward = 0.0
         self.done = False
         
@@ -357,6 +370,8 @@ class CarlaEnv(gym.Env):
         })
     
     def step(self,action):
+        self.current_step += 1
+    
         acc = action[0][0]
         brk = action[0][1]
         trn = action[0][2]
@@ -369,11 +384,6 @@ class CarlaEnv(gym.Env):
         
         self.world.tick()
         self.bev.update_bird_eye_view()
-        
-        # deal with reward and done
-        self.reward = 0
-        self.done = False
-        info = {}
         
         transform = self.ego_vehicle.get_transform()
         transform.location.z += 10
@@ -393,17 +403,22 @@ class CarlaEnv(gym.Env):
         'trgt_pos' : self.target_pos,
         }
         
+        reward, done = self.deal_with_reward_and_done()
+        info = {}
+        
         return observation,reward,done,info
     
     def reset(self):
+        self.current_step = 0
+    
         self.remove_all_actors()
         self.create_all_actors()
 
-        target_pos_vector = random.choice(self.spawn_points)
+        self.target_pos_transform = random.choice(self.spawn_points)
         self.target_pos = np.array([
-        target_pos_vector.location.x, 
-        target_pos_vector.location.y, 
-        target_pos_vector.location.z])
+        self.target_pos_transform.location.x, 
+        self.target_pos_transform.location.y, 
+        self.target_pos_transform.location.z])
         self.reward = 0.0
         self.done = False
         
@@ -422,6 +437,57 @@ class CarlaEnv(gym.Env):
         
         return observation
         
+    def deal_with_reward_and_done(self):
+        if self.collision.measure_data:
+            collision_reward = -200.0
+            self.done = True
+            self.collision.measure_data = None
+        else:
+            collision_reward = 0.0
+        if self.lane_invasion.measure_data is not None:
+            if self.lane_invasion.measure_data == \
+            'Broken' or 'BrokenSolid' or'BrokenBroken':
+                lane_invasion_reward = 0.0
+            else:
+                lane_invasion_reward = -100.0
+            self.lane_invasion.measure_data = None
+        else:
+            lane_invasion_reward = 0.0
+        if self.ego_vehicle.is_at_traffic_light():
+            cross_red_light_reward = -100.0
+        else:
+            cross_red_light_reward = 0.0
+        current_velocity = self.ego_vehicle.get_velocity()
+        current_speed = np.sqrt(current_velocity.x**2 + \
+        current_velocity.y**2 + \
+        current_velocity.z**2)
+        current_speed_limit = 60.0
+        if current_speed_limit is not None:
+            current_speed_limit = \
+            min(60.0,self.ego_vehicle.get_speed_limit() / 3.6)
+        if current_speed > current_speed_limit:
+            over_speed_reward = -10.0 * \
+            (current_speed - current_speed_limit)
+        else:
+            over_speed_reward = 0.0
+        current_location = self.ego_vehicle.get_transform().location
+        distance = \
+         self.target_pos_transform.location.distance(current_location)
+        distance_reward = -distance
+        if distance < 1.0:
+            self.done = True
+        time_reward = -self.current_step
+        if self.current_step > 3000:
+            self.done = True
+        self.reward = collision_reward + \
+        lane_invasion_reward + \
+        cross_red_light_reward + \
+        over_speed_reward + \
+        distance_reward + \
+        time_reward
+        
+        return self.reward, self.done
+            
     def create_all_actors(self):
         # create ego vehicle
         ego_vehicle_bp = \
@@ -435,53 +501,57 @@ class CarlaEnv(gym.Env):
             self.world.try_spawn_actor(ego_vehicle_bp, \
             random.choice(self.spawn_points))
         self.vehicle_list.append(self.ego_vehicle)
+        bbe_x = self.ego_vehicle.bounding_box.extent.x
+        bbe_y = self.ego_vehicle.bounding_box.extent.y
+        bbe_z = self.ego_vehicle.bounding_box.extent.z
         
         self.left_camera = SensorManager(self.world, 'RGBCamera', \
-        carla.Transform(carla.Location(x=0, z=2.4), \
+        carla.Transform(carla.Location(x=0, z=bbe_z+1.4), \
         carla.Rotation(yaw=-90)), self.ego_vehicle, {}, \
         self.display_size, [0, 0])
         self.sensor_list.append(self.left_camera)
         self.display_manager.add_sensor(self.left_camera)
 
         self.front_camera = SensorManager(self.world, 'RGBCamera', \
-        carla.Transform(carla.Location(x=0, z=2.4), \
+        carla.Transform(carla.Location(x=0, z=bbe_z+1.4), \
         carla.Rotation(yaw=+00)), self.ego_vehicle, {}, \
         self.display_size, [0, 1])
         self.sensor_list.append(self.front_camera)
         self.display_manager.add_sensor(self.front_camera)
         
         self.right_camera = SensorManager(self.world, 'RGBCamera', \
-        carla.Transform(carla.Location(x=0, z=2.4), \
+        carla.Transform(carla.Location(x=0, z=bbe_z+1.4), \
         carla.Rotation(yaw=+90)), self.ego_vehicle, {}, \
         self.display_size, [0, 2])
         self.sensor_list.append(self.right_camera)
         self.display_manager.add_sensor(self.right_camera)
         
         self.rear_camera = SensorManager(self.world, 'RGBCamera', \
-        carla.Transform(carla.Location(x=0, z=2.4), \
+        carla.Transform(carla.Location(x=0, z=bbe_z+1.4), \
         carla.Rotation(yaw=180)), self.ego_vehicle, {}, \
         self.display_size, [1, 1])
         self.sensor_list.append(self.rear_camera)
         self.display_manager.add_sensor(self.rear_camera)
         
         self.top_camera = SensorManager(self.world, 'RGBCamera', \
-        carla.Transform(carla.Location(x=0, z=6), \
+        carla.Transform(carla.Location(x=0, z=8), \
         carla.Rotation(pitch=-90)), self.ego_vehicle, {}, \
         self.display_size, [2, 1])
         self.sensor_list.append(self.top_camera)
         self.display_manager.add_sensor(self.top_camera)
         
         self.lidar = SensorManager(self.world, 'LiDAR', \
-        carla.Transform(carla.Location(x=0, z=2.4)), self.ego_vehicle, \
+        carla.Transform(carla.Location(x=0, z=bbe_z+1.4)), \
+        self.ego_vehicle, \
         {'channels' : '64', 'range' : '10.0',  \
         'points_per_second': '250000', 'rotation_frequency': '20'}, \
         self.display_size, [1, 0])
         self.sensor_list.append(self.lidar)
         self.display_manager.add_sensor(self.lidar)
         
-        bound_x = 0.5 + self.ego_vehicle.bounding_box.extent.x
-        bound_y = 0.5 + self.ego_vehicle.bounding_box.extent.y
-        bound_z = 0.5 + self.ego_vehicle.bounding_box.extent.z
+        bound_x = 0.5 + bbe_x
+        bound_y = 0.5 + bbe_y
+        bound_z = 0.5 + bbe_z
         self.radar = SensorManager(self.world, 'Radar', \
         carla.Transform(\
         carla.Location(x=bound_x + 0.05, z=bound_z+0.05), \
@@ -510,6 +580,10 @@ class CarlaEnv(gym.Env):
         self.collision = SensorManager(self.world, 'Collision', \
         carla.Transform(), self.ego_vehicle, {}, None, None)
         self.sensor_list.append(self.collision)
+        
+        self.lane_invasion = SensorManager(self.world, 'Lane_invasion', \
+        carla.Transform(), self.ego_vehicle, {}, None, None)
+        self.sensor_list.append(self.lane_invasion)
 
         transform = self.ego_vehicle.get_transform()
         transform.location.z += 10
