@@ -693,24 +693,34 @@ class BirdEyeView(object):
         weak_self, timestamp))
     
     def destroy(self):
-        self.server_clock = None
-        self.surface = None
-        self.measure_data = None
+        if self.server_clock is not None:
+            del self.server_clock
+        if self.surface is not None:
+            del self.surface
+        if self.measure_data is not None:
+            del self.measure_data
 
-        self.town_map = None
         self.actors_with_transforms = []
 
-        self.hero_actor = None
-        self.hero_id = None
-        self.hero_transform = None
+        if self.hero_actor is not None:
+            del self.hero_actor
+        if self.hero_id is not None:
+            del self.hero_id
+        if self.hero_transform is not None:
+            del self.hero_transform
         
-        self.map_image = None
+        if self.map_image is not None:
+            del self.map_image
         
-        self.actors_surface = None
-        self.hero_surface = None
-        self.result_surface = None
+        if self.actors_surface is not None:
+            del self.actors_surface
+        if self.hero_surface is not None:
+            del self.hero_surface
+        if self.result_surface is not None:
+            del self.result_surface
         
-        self.traffic_light_surfaces = None
+        if self.traffic_light_surfaces is not None:
+            del self.traffic_light_surfaces
         
     @staticmethod
     def on_world_tick(weak_self, timestamp):
@@ -726,6 +736,7 @@ class BirdEyeView(object):
         
     def tick(self, clock):
         actors = self.world.get_actors()
+        #print("actor len ",len(actors))
         # We store the transforms also so that we avoid having transforms of previous tick and current tick when rendering them.
         self.actors_with_transforms = [(actor, actor.get_transform()) \
         for actor in actors]

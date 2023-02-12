@@ -25,7 +25,8 @@ class DisplayManager:
         pygame.font.init()
         try:
             self.display = pygame.display.set_mode(window_size, \
-            pygame.HWSURFACE | pygame.DOUBLEBUF)
+            pygame.HWSURFACE | pygame.DOUBLEBUF | pygame.HIDDEN)
+            self.display_shown_flag = False
         except Exception:
             print("display is not correctly created")
         
@@ -56,6 +57,13 @@ class DisplayManager:
         self.bev = bev
         
     def render(self):
+        if not self.display_shown_flag:
+            try:
+                self.display = pygame.display.set_mode(window_size, \
+                pygame.HWSURFACE | pygame.DOUBLEBUF | pygame.SHOWN)
+            except Exception:
+                print("display is not correctly created")
+            self.display_shown_flag = True
         for s in self.sensor_list:
             if s.surface is not None:
                 self.display.blit(s.surface, \
@@ -191,7 +199,7 @@ class SensorManager:
         
     def destroy_sensor(self):
         if self.sensor.is_alive:
-            self.sensor.destroy
+            self.sensor.destroy()
         
     def save_rgb_image(self, image):
         t_start = self.timer.time()
@@ -297,6 +305,23 @@ class SensorManager:
         lane_invasion_msg.crossed_lane_markings))
         self.measure_data = str(list_type[-1])
 
+class TargetPosition(object):
+    def __init__(self, transform):
+        self.set_transform(transform)
+    
+    def set_transform(self, transform):
+        self.transform = transform
+        self.box = carla.BoundingBox(transform.location, \
+        carla.Vector3D(1,1,1))
+        self.measure_data = np.array([
+        self.transform.location.x, 
+        self.transform.location.y, 
+        self.transform.location.z])
+        
+    def draw_box(self, debug):
+        debug.draw_box(self.box,carla.Rotation(), \
+        1.0, carla.Color(0,255,0), -1.0)
+
 class CarlaEnv(gym.Env):
     def __init__(self, params):
         # parse parameters
@@ -305,6 +330,7 @@ class CarlaEnv(gym.Env):
         self.window_resolution = params['window_resolution']
         self.grid_size = params['grid_size']
         self.sync = params['sync']
+        self.no_render = params['no_render']
         self.ego_filter = params['ego_filter']
         self.num_vehicles = params['num_vehicles']
         self.num_pedestrians = params['num_pedestrians']
@@ -318,6 +344,10 @@ class CarlaEnv(gym.Env):
         self.map = self.world.get_map()
         self.spawn_points = self.map.get_spawn_points()
         self.original_settings = self.world.get_settings()
+        if self.no_render:
+            settings = self.world.get_settings()
+            settings.no_rendering_mode = True
+            self.world.apply_settings(settings)
         if self.sync:
             traffic_manager = self.client.get_trafficmanager(8000)
             settings = self.world.get_settings()
@@ -336,8 +366,7 @@ class CarlaEnv(gym.Env):
         self.pedestrian_list = []
         self.pedestrian_controller_list = []
         
-        self.target_pos_vector = None
-        self.target_pos = None
+        self.target_pos = TargetPosition(carla.Transform())
         self.current_step = 0
         self.reward = 0.0
         self.done = False
@@ -388,7 +417,7 @@ class CarlaEnv(gym.Env):
         transform = self.ego_vehicle.get_transform()
         transform.location.z += 10
         transform.rotation.pitch -= 90
-        self.spectator.set_transform(transform)
+        #self.spectator.set_transform(transform)
         
         observation = {
         'left_camera' : self.left_camera.measure_data,
@@ -400,7 +429,7 @@ class CarlaEnv(gym.Env):
         'gnss': self.gnss.measure_data,
         'imu': self.imu.measure_data,
         'bev': self.bev.measure_data,
-        'trgt_pos' : self.target_pos,
+        'trgt_pos' : self.target_pos.measure_data,
         }
         
         reward, done = self.deal_with_reward_and_done()
@@ -414,11 +443,7 @@ class CarlaEnv(gym.Env):
         self.remove_all_actors()
         self.create_all_actors()
 
-        self.target_pos_transform = random.choice(self.spawn_points)
-        self.target_pos = np.array([
-        self.target_pos_transform.location.x, 
-        self.target_pos_transform.location.y, 
-        self.target_pos_transform.location.z])
+        self.target_pos.set_transform(random.choice(self.spawn_points))
         self.reward = 0.0
         self.done = False
         
@@ -432,7 +457,7 @@ class CarlaEnv(gym.Env):
         'gnss': self.gnss.measure_data,
         'imu': self.imu.measure_data,
         'bev': self.bev.measure_data,
-        'trgt_pos' : self.target_pos,
+        'trgt_pos' : self.target_pos.measure_data,
         }
         
         return observation
@@ -472,7 +497,7 @@ class CarlaEnv(gym.Env):
             over_speed_reward = 0.0
         current_location = self.ego_vehicle.get_transform().location
         distance = \
-         self.target_pos_transform.location.distance(current_location)
+         self.target_pos.transform.location.distance(current_location)
         distance_reward = -distance
         if distance < 1.0:
             self.done = True
@@ -496,10 +521,9 @@ class CarlaEnv(gym.Env):
         if int(bp.get_attribute('number_of_wheels'))==4])
         ego_vehicle_bp.set_attribute('role_name','hero')
         
-        while self.ego_vehicle is None:
-            self.ego_vehicle = \
-            self.world.try_spawn_actor(ego_vehicle_bp, \
-            random.choice(self.spawn_points))
+        self.ego_vehicle = \
+        self.world.try_spawn_actor(ego_vehicle_bp, \
+        random.choice(self.spawn_points))
         self.vehicle_list.append(self.ego_vehicle)
         bbe_x = self.ego_vehicle.bounding_box.extent.x
         bbe_y = self.ego_vehicle.bounding_box.extent.y
@@ -586,7 +610,7 @@ class CarlaEnv(gym.Env):
         self.sensor_list.append(self.lane_invasion)
 
         transform = self.ego_vehicle.get_transform()
-        transform.location.z += 10
+        transform.location.z += 50#10
         transform.rotation.pitch -= 90
         self.spectator.set_transform(transform)
         
@@ -635,29 +659,41 @@ class CarlaEnv(gym.Env):
             self.pedestrian_list.append(pedestrian_tmp_ref)
             self.pedestrian_controller_list.append( \
             pedestrian_controller_actor)
+            
     
     def remove_all_actors(self):
         for s in self.sensor_list:
             s.destroy_sensor()
-        self.ego_vehicle = None
+            del s
+        print("sensor_list len",len(self.sensor_list))
+        self.sensor_list = []
         for v in self.vehicle_list:
             if v.is_alive:
                 v.destroy()
+            del v
+        if self.ego_vehicle is not None:
+            del self.ego_vehicle
+        print("vehicle_list len",len(self.vehicle_list))
+        self.vehicle_list = []
         for c in self.pedestrian_controller_list:
             if c.is_alive:
                 c.stop()
                 c.destroy()
+            del c
+        print("pedestrian_controller_list \
+        len",len(self.pedestrian_controller_list))
+        self.pedestrian_controller_list = []
         for p in self.pedestrian_list:
             if p.is_alive:
                 p.destroy()
+            del p
+        print("pedestrian_list len",len(self.pedestrian_list))
+        self.pedestrian_list = []
         
         if self.bev is not None:
             self.bev.destroy()
-        self.vehicle_list = []
-        self.sensor_list = []
-        self.bev = None
-        self.pedestrian_list = []
-        self.pedestrian_controller_list = []
+            del self.bev
+
         self.display_manager.clear()
     
     def display(self):
