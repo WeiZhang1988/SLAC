@@ -91,6 +91,7 @@ COLOR_ALUMINIUM_5 = pygame.Color(46, 52, 54)
 
 COLOR_RED   = pygame.Color(255, 0, 0)
 COLOR_GREEN = pygame.Color(0, 255, 0)
+COLOR_GREEN_ALPHA = pygame.Color(0, 255, 0, 255)
 COLOR_BLUE  = pygame.Color(0, 0, 255)
 COLOR_WHITE = pygame.Color(255, 255, 255)
 COLOR_BLACK = pygame.Color(0, 0, 0)
@@ -196,14 +197,14 @@ class MapImage(object):
         self.show_spawn_points = show_spawn_points
 
         waypoints = carla_map.generate_waypoints(2)
-        margin = 50
+        margin = 10
         max_x = max(waypoints, key=lambda x: x.transform.location.x).transform.location.x + margin
         max_y = max(waypoints, key=lambda x: x.transform.location.y).transform.location.y + margin
         min_x = min(waypoints, key=lambda x: x.transform.location.x).transform.location.x - margin
         min_y = min(waypoints, key=lambda x: x.transform.location.y).transform.location.y - margin
 
         self.width = max(max_x - min_x, max_y - min_y)
-        self._world_offset = (min_x, min_y)
+        self.world_offset = (min_x, min_y-20)
 
         # Maximum size of a Pygame surface
         width_in_pixels = (1 << 14) - 1
@@ -260,7 +261,7 @@ class MapImage(object):
 
     def draw_road_map(self, map_surface, carla_world, carla_map, world_to_pixel, world_to_pixel_width):
         """Draws all the roads, including lane markings, arrows and traffic signs"""
-        map_surface.fill(COLOR_RED)#COLOR_ALUMINIUM_4)
+        map_surface.fill(COLOR_ALUMINIUM_4)
         precision = 0.05
 
         def lane_marking_color_to_tango(lane_marking_color):
@@ -504,9 +505,9 @@ class MapImage(object):
                 set_waypoints.append(waypoints)
 
                 # Draw Shoulders, Parkings and Sidewalks
-                PARKING_COLOR = COLOR_ALUMINIUM_4_5
-                SHOULDER_COLOR = COLOR_RED#COLOR_ALUMINIUM_5
-                SIDEWALK_COLOR = COLOR_RED#COLOR_ALUMINIUM_3
+                PARKING_COLOR  = pygame.Color(0,0,255)#COLOR_ALUMINIUM_4_5
+                SHOULDER_COLOR = COLOR_SCARLET_RED_0#COLOR_RED#COLOR_ALUMINIUM_5
+                SIDEWALK_COLOR = COLOR_SCARLET_RED_2#COLOR_RED#COLOR_ALUMINIUM_3
 
                 shoulder = [[], []]
                 parking = [[], []]
@@ -544,8 +545,8 @@ class MapImage(object):
                         r = r.get_right_lane()
 
                 # Draw classified lane types
-                draw_lane(map_surface, shoulder, pygame.Color(255, 0, 0))#SHOULDER_COLOR)
-                draw_lane(map_surface, parking, pygame.Color(0, 0, 255))#PARKING_COLOR)
+                draw_lane(map_surface, shoulder, SHOULDER_COLOR)
+                draw_lane(map_surface, parking, PARKING_COLOR)
                 draw_lane(map_surface, sidewalk, SIDEWALK_COLOR)
 
             # Draw Roads
@@ -617,8 +618,8 @@ class MapImage(object):
 
     def world_to_pixel(self, location, offset=(0, 0)):
         """Converts the world coordinates to pixel coordinates"""
-        x = self.scale * self._pixels_per_meter * (location.x - self._world_offset[0])
-        y = self.scale * self._pixels_per_meter * (location.y - self._world_offset[1])
+        x = self.scale * self._pixels_per_meter * (location.x - self.world_offset[0])
+        y = self.scale * self._pixels_per_meter * (location.y - self.world_offset[1])
         return [int(x - offset[0]), int(y - offset[1])]
 
     def world_to_pixel_width(self, width):
@@ -640,15 +641,18 @@ class MapImage(object):
 
 class BirdEyeView(object):
     def __init__(self, world, pixels_per_meter, pixels_ahead_vehicle, \
-    display_size, display_pos, hero_actor):
+    display_size, display_pos, display_pos_global, hero_actor, target_transform):
         self.world = world
         self.pixels_per_meter = pixels_per_meter
         self.display_size = display_size
         self.display_pos = display_pos
+        self.display_pos_global = display_pos_global
         self.pixels_ahead_vehicle = pixels_ahead_vehicle
         self.server_clock = pygame.time.Clock()
         self.surface = pygame.Surface(display_size).convert()
         self.surface.set_colorkey(COLOR_BLACK)
+        self.surface_global = pygame.Surface(display_size).convert()
+        self.surface_global.set_colorkey(COLOR_BLACK)
         self.measure_data = None
         
         # World data
@@ -663,6 +667,8 @@ class BirdEyeView(object):
         else:
             self.hero_id = None
             self.hero_transform = None
+            
+        self.target_transform = target_transform
         
         # Create Surfaces
         self.map_image = MapImage(self.world, self.town_map, \
@@ -697,6 +703,8 @@ class BirdEyeView(object):
             del self.server_clock
         if self.surface is not None:
             del self.surface
+        if self.surface_global is not None:
+            del self.surface_global
         if self.measure_data is not None:
             del self.measure_data
 
@@ -867,6 +875,12 @@ class BirdEyeView(object):
             #int(math.ceil(4.0 * self.map_image.scale)))
             pygame.draw.polygon(surface, color, corners)
             
+    def render_points(self, surface, colors, transform, radius_in_pix, world_to_pixel):
+        location = world_to_pixel(transform.location)
+        pygame.draw.circle(surface, colors[0], location, radius_in_pix, 0)
+        location = world_to_pixel(self.hero_actor.get_location())
+        pygame.draw.circle(surface, colors[1], location, radius_in_pix, 0)
+            
     def render_actors(self, surface, vehicles, traffic_lights, speed_limits, walkers):
         # Static actors
         self.render_traffic_lights(surface, \
@@ -884,6 +898,10 @@ class BirdEyeView(object):
         self.render_vehicles(surface, vehicles, \
         self.map_image.world_to_pixel)
         self.render_walkers(surface, walkers, \
+        self.map_image.world_to_pixel)
+        
+        self.render_points(surface, (COLOR_GREEN,COLOR_SKY_BLUE_2), \
+        self.target_transform, 10, \
         self.map_image.world_to_pixel)
         
     def clip_surfaces(self, clipping_rect):
@@ -934,7 +952,7 @@ class BirdEyeView(object):
         translation_offset[1], \
         self.hero_surface.get_width(), \
         self.hero_surface.get_height())
-        self.clip_surfaces(clipping_rect)
+        #self.clip_surfaces(clipping_rect)
         
         Util.blits(self.result_surface, surfaces)
         
@@ -950,6 +968,10 @@ class BirdEyeView(object):
         self.surface.get_height() / 2)
         rotation_pivot = rotated_result_surface.get_rect(center=center)
         self.surface.blit(rotated_result_surface, rotation_pivot)
+        
+        self.render_points(self.result_surface, (COLOR_GREEN,COLOR_BLUE), \
+        self.target_transform, 100, self.map_image.world_to_pixel)
+        self.surface_global.blit(pygame.transform.smoothscale(self.result_surface,self.display_size),(0,0))
 
         self.measure_data = \
         np.array(pygame.surfarray.array3d(self.surface)).swapaxes(0,1)

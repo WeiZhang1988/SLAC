@@ -20,15 +20,19 @@ class CustomTimer:
         return self.timer()
 
 class DisplayManager:
-    def __init__(self, grid_size, window_size):
+    def __init__(self, grid_size, window_size, display_sensor):
         pygame.init()
         pygame.font.init()
         try:
-            self.display = pygame.display.set_mode(window_size, \
-            pygame.HWSURFACE | pygame.DOUBLEBUF | pygame.HIDDEN)
-            self.display_shown_flag = False
+            if display_sensor:
+                self.display = pygame.display.set_mode(window_size, \
+                pygame.HWSURFACE | pygame.DOUBLEBUF | pygame.SHOWN)
+            else:
+                self.display = pygame.display.set_mode(window_size, \
+                pygame.HWSURFACE | pygame.DOUBLEBUF | pygame.HIDDEN)
+            self.display.fill(pygame.Color(0,0,0))
         except Exception:
-            print("display is not correctly created")
+            print("display is not correctly created in init")
         
         self.grid_size = grid_size
         self.window_size = window_size
@@ -57,19 +61,14 @@ class DisplayManager:
         self.bev = bev
         
     def render(self):
-        if not self.display_shown_flag:
-            try:
-                self.display = pygame.display.set_mode(window_size, \
-                pygame.HWSURFACE | pygame.DOUBLEBUF | pygame.SHOWN)
-            except Exception:
-                print("display is not correctly created")
-            self.display_shown_flag = True
         for s in self.sensor_list:
             if s.surface is not None:
                 self.display.blit(s.surface, \
                 self.get_display_offset(s.display_pos))
         self.display.blit(self.bev.surface, \
         self.get_display_offset(self.bev.display_pos))
+        self.display.blit(self.bev.surface_global, \
+        self.get_display_offset(self.bev.display_pos_global))
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -331,6 +330,7 @@ class CarlaEnv(gym.Env):
         self.grid_size = params['grid_size']
         self.sync = params['sync']
         self.no_render = params['no_render']
+        self.display_sensor = params['display_sensor']
         self.ego_filter = params['ego_filter']
         self.num_vehicles = params['num_vehicles']
         self.num_pedestrians = params['num_pedestrians']
@@ -358,7 +358,7 @@ class CarlaEnv(gym.Env):
         
         self.ego_vehicle = None
         self.display_manager = DisplayManager(self.grid_size, \
-        self.window_resolution)
+        self.window_resolution, self.display_sensor)
         self.display_size = self.display_manager.get_display_size()
         self.vehicle_list = []
         self.sensor_list = []
@@ -366,7 +366,7 @@ class CarlaEnv(gym.Env):
         self.pedestrian_list = []
         self.pedestrian_controller_list = []
         
-        self.target_pos = TargetPosition(carla.Transform())
+        self.target_pos = None #TargetPosition(carla.Transform())
         self.current_step = 0
         self.reward = 0.0
         self.done = False
@@ -443,7 +443,6 @@ class CarlaEnv(gym.Env):
         self.remove_all_actors()
         self.create_all_actors()
 
-        self.target_pos.set_transform(random.choice(self.spawn_points))
         self.reward = 0.0
         self.done = False
         
@@ -514,6 +513,9 @@ class CarlaEnv(gym.Env):
         return self.reward, self.done
             
     def create_all_actors(self):
+        self.target_pos = TargetPosition(carla.Transform())
+        self.target_pos.set_transform(random.choice(self.spawn_points))
+    
         # create ego vehicle
         ego_vehicle_bp = \
         random.choice([bp for bp in self.world.get_blueprint_library().\
@@ -597,8 +599,8 @@ class CarlaEnv(gym.Env):
         
         self.bev = BirdEyeView(self.world, \
         PIXELS_PER_METER, PIXELS_AHEAD_VEHICLE, \
-        self.display_size, [2, 0], \
-        self.ego_vehicle)
+        self.display_size, [2, 0], [2, 2], \
+        self.ego_vehicle, self.target_pos.transform)
         self.display_manager.add_birdeyeview(self.bev)
         
         self.collision = SensorManager(self.world, 'Collision', \
@@ -662,10 +664,12 @@ class CarlaEnv(gym.Env):
             
     
     def remove_all_actors(self):
+        if self.target_pos is not None:
+            del self.target_pos
         for s in self.sensor_list:
             s.destroy_sensor()
             del s
-        print("sensor_list len",len(self.sensor_list))
+        #print("sensor_list len",len(self.sensor_list))
         self.sensor_list = []
         for v in self.vehicle_list:
             if v.is_alive:
@@ -673,21 +677,21 @@ class CarlaEnv(gym.Env):
             del v
         if self.ego_vehicle is not None:
             del self.ego_vehicle
-        print("vehicle_list len",len(self.vehicle_list))
+        #print("vehicle_list len",len(self.vehicle_list))
         self.vehicle_list = []
         for c in self.pedestrian_controller_list:
             if c.is_alive:
                 c.stop()
                 c.destroy()
             del c
-        print("pedestrian_controller_list \
-        len",len(self.pedestrian_controller_list))
+        #print("pedestrian_controller_list \
+        #len",len(self.pedestrian_controller_list))
         self.pedestrian_controller_list = []
         for p in self.pedestrian_list:
             if p.is_alive:
                 p.destroy()
             del p
-        print("pedestrian_list len",len(self.pedestrian_list))
+        #print("pedestrian_list len",len(self.pedestrian_list))
         self.pedestrian_list = []
         
         if self.bev is not None:

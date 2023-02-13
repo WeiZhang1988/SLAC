@@ -3,6 +3,7 @@ import time
 import gym
 import carla_env
 import tracemalloc
+import gc
 
 params ={
 'carla_port': 2000,
@@ -11,7 +12,8 @@ params ={
 'grid_size': [3,3],
 'sync': True,
 'no_render': False,
-'ego_filter': 'vehicle.*',
+'display_sensor': True,
+'ego_filter': 'vehicle.dodge.charger_police_2020',
 'num_vehicles': 20,
 'num_pedestrians': 20,
 }
@@ -28,9 +30,10 @@ while True:
         obs = env.reset()
         done = False
     while not done:
-        #env.display()
+        env.display()
         action=(np.array([0.8,0.0,0.0]),np.array([False]))
         obs, rwd, done, info = env.step(action)
+    gc.collect()
     print("memory usage",tracemalloc.get_traced_memory())
 env.close()
 tracemalloc.stop()
