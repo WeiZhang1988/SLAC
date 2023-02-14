@@ -1,24 +1,25 @@
 import numpy as np
 import time
 import gym
-import carla_env
+import carla_rl_env
 import tracemalloc
 import gc
 
 params ={
 'carla_port': 2000,
 'map_name': 'Town01',
-'window_resolution': [1280,1080],
+'window_resolution': [1620,1080],
 'grid_size': [3,3],
 'sync': True,
 'no_render': False,
 'display_sensor': True,
-'ego_filter': 'vehicle.*', #'vehicle.dodge.charger_police_2020',
+'ego_filter': 'vehicle.dodge.charger_police_2020',
 'num_vehicles': 20,
 'num_pedestrians': 20,
+'enable_route_planner': True, 
 }
 
-env = gym.make('CarlaEnv-v0', params=params)
+env = gym.make('CarlaRlEnv-v0', params=params)
 done = False
 obs = env.reset()
 n=0

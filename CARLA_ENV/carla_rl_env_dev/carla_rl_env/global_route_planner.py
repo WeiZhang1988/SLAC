@@ -14,7 +14,7 @@ import networkx as nx
 from enum import Enum
 
 import carla
-from carla_env.misc import vector
+from carla_rl_env.misc import vector
 
 class RoadOption(Enum):
     """

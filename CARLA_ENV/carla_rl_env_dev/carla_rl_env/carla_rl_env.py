@@ -6,9 +6,9 @@ import time
 import gym
 from gym.spaces import Dict, Discrete, Box, Tuple
 import carla
-from carla_env.bird_eye_view import BirdEyeView, PIXELS_PER_METER, \
+from carla_rl_env.bird_eye_view import BirdEyeView, PIXELS_PER_METER, \
 PIXELS_AHEAD_VEHICLE
-from carla_env.global_route_planner import GlobalRoutePlanner
+from carla_rl_env.global_route_planner import GlobalRoutePlanner
 
 class CustomTimer:
     def __init__(self):
@@ -322,7 +322,7 @@ class TargetPosition(object):
         debug.draw_box(self.box,carla.Rotation(), \
         1.0, carla.Color(0,255,0), -1.0)
 
-class CarlaEnv(gym.Env):
+class CarlaRlEnv(gym.Env):
     def __init__(self, params):
         # parse parameters
         self.carla_port = params['carla_port']
@@ -335,6 +335,7 @@ class CarlaEnv(gym.Env):
         self.ego_filter = params['ego_filter']
         self.num_vehicles = params['num_vehicles']
         self.num_pedestrians = params['num_pedestrians']
+        self.enable_route_planner = params['enable_route_planner']
         # connet to server
         self.client = carla.Client('localhost',self.carla_port)
         self.client.set_timeout(10.0)
@@ -369,7 +370,7 @@ class CarlaEnv(gym.Env):
         
         self.target_pos = None #TargetPosition(carla.Transform())
         
-        self.route_planner_global = GlobalRoutePlanner(self.map,2.0)
+        self.route_planner_global = GlobalRoutePlanner(self.map,1.0)
         self.waypoints = None
         
         self.current_step = 0
@@ -474,6 +475,7 @@ class CarlaEnv(gym.Env):
             self.collision.measure_data = None
         else:
             collision_reward = 0.0
+        
         if self.lane_invasion.measure_data is not None:
             if self.lane_invasion.measure_data == \
             'Broken' or 'BrokenSolid' or'BrokenBroken':
@@ -483,10 +485,12 @@ class CarlaEnv(gym.Env):
             self.lane_invasion.measure_data = None
         else:
             lane_invasion_reward = 0.0
+        
         if self.ego_vehicle.is_at_traffic_light():
             cross_red_light_reward = -100.0
         else:
             cross_red_light_reward = 0.0
+        
         current_velocity = self.ego_vehicle.get_velocity()
         current_speed = np.sqrt(current_velocity.x**2 + \
         current_velocity.y**2 + \
@@ -500,21 +504,35 @@ class CarlaEnv(gym.Env):
             (current_speed - current_speed_limit)
         else:
             over_speed_reward = 0.0
+        
         current_location = self.ego_vehicle.get_transform().location
         distance = \
          self.target_pos.transform.location.distance(current_location)
         distance_reward = -distance
         if distance < 1.0:
+            distance_reward = 50.0
             self.done = True
+        
         time_reward = -self.current_step
         if self.current_step > 3000:
             self.done = True
+        
+        if self.enable_route_planner:
+            dis = 1000.0
+            for p in self.waypoints:
+                dis = min(dis, \
+                p[0].transform.location.distance(current_location))
+            off_way_reward = -dis
+        else:
+            off_way_reward = 0.0
+        
         self.reward = collision_reward + \
         lane_invasion_reward + \
         cross_red_light_reward + \
         over_speed_reward + \
         distance_reward + \
-        time_reward
+        time_reward + \
+        off_way_reward
         
         return self.reward, self.done
             
@@ -544,7 +562,6 @@ class CarlaEnv(gym.Env):
         bbe_x = self.ego_vehicle.bounding_box.extent.x
         bbe_y = self.ego_vehicle.bounding_box.extent.y
         bbe_z = self.ego_vehicle.bounding_box.extent.z
-        print("bbe_z ",bbe_z)
         
         self.left_camera = SensorManager(self.world, 'RGBCamera', \
         carla.Transform(carla.Location(x=0, z=bbe_z+1.4), \
@@ -575,7 +592,7 @@ class CarlaEnv(gym.Env):
         self.display_manager.add_sensor(self.rear_camera)
         
         self.top_camera = SensorManager(self.world, 'RGBCamera', \
-        carla.Transform(carla.Location(x=0, z=8), \
+        carla.Transform(carla.Location(x=0, z=20), \
         carla.Rotation(pitch=-90)), self.ego_vehicle, {}, \
         self.display_size, [2, 1])
         self.sensor_list.append(self.top_camera)
