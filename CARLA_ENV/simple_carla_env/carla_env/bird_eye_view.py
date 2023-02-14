@@ -89,9 +89,10 @@ COLOR_ALUMINIUM_4 = pygame.Color(85, 87, 83)
 COLOR_ALUMINIUM_4_5 = pygame.Color(66, 62, 64)
 COLOR_ALUMINIUM_5 = pygame.Color(46, 52, 54)
 
+COLOR_CYAN = pygame.Color(0,255,255)
+
 COLOR_RED   = pygame.Color(255, 0, 0)
 COLOR_GREEN = pygame.Color(0, 255, 0)
-COLOR_GREEN_ALPHA = pygame.Color(0, 255, 0, 255)
 COLOR_BLUE  = pygame.Color(0, 0, 255)
 COLOR_WHITE = pygame.Color(255, 255, 255)
 COLOR_BLACK = pygame.Color(0, 0, 0)
@@ -641,7 +642,8 @@ class MapImage(object):
 
 class BirdEyeView(object):
     def __init__(self, world, pixels_per_meter, pixels_ahead_vehicle, \
-    display_size, display_pos, display_pos_global, hero_actor, target_transform):
+    display_size, display_pos, display_pos_global, hero_actor, \
+    target_transform, waypoints = None):
         self.world = world
         self.pixels_per_meter = pixels_per_meter
         self.display_size = display_size
@@ -670,6 +672,8 @@ class BirdEyeView(object):
             
         self.target_transform = target_transform
         
+        self.waypoints = waypoints
+        
         # Create Surfaces
         self.map_image = MapImage(self.world, self.town_map, \
         self.pixels_per_meter)
@@ -679,10 +683,15 @@ class BirdEyeView(object):
         self.surface_size = self.map_image.big_map_surface.get_width()
         
         # Render Actors
-        self.actors_surface = pygame.Surface(\
+        self.actors_surface = pygame.Surface( \
         (self.map_image.surface.get_width(), \
         self.map_image.surface.get_height()))
         self.actors_surface.set_colorkey(COLOR_BLACK)
+        
+        self.waypoints_surface = pygame.Surface( \
+        (self.map_image.surface.get_width(), \
+        self.map_image.surface.get_height()))
+        self.waypoints_surface.set_colorkey(COLOR_BLACK)
         
         scaled_original_size = self.original_surface_size * (1.0 / 0.9)
         self.hero_surface = pygame.Surface((scaled_original_size, \
@@ -903,6 +912,16 @@ class BirdEyeView(object):
         self.render_points(surface, (COLOR_GREEN,COLOR_SKY_BLUE_2), \
         self.target_transform, 10, \
         self.map_image.world_to_pixel)
+    
+    def render_waypoints(self, surface, waypoints, world_to_pixel):
+        color = COLOR_CYAN
+        corners = []
+        for p in waypoints:
+            corners.append(carla.Location(x=p[0].transform.location.x, \
+            y=p[0].transform.location.y))
+        corners = [world_to_pixel(p) for p in corners]
+        if len(corners) > 2:
+            pygame.draw.lines(surface, color, False, corners, 20)
         
     def clip_surfaces(self, clipping_rect):
         self.actors_surface.set_clip(clipping_rect)
@@ -923,14 +942,21 @@ class BirdEyeView(object):
         # No zoom in and out
         scale_factor = 1.0
         
+        # Render Waypoints
+        self.waypoints_surface.fill(COLOR_BLACK)
+        if self.waypoints is not None:
+            self.render_waypoints(self.waypoints_surface, \
+            self.waypoints, self.map_image.world_to_pixel)
+        
         # Render Actors
         self.actors_surface.fill(COLOR_BLACK)
         self.render_actors(self.actors_surface, vehicles, \
         traffic_lights, speed_limits, walkers)
-        
+
         # Blit surfaces
         surfaces = ((self.map_image.surface, (0, 0)), \
-        (self.actors_surface, (0, 0)),)
+        (self.waypoints_surface, (0, 0)), \
+        (self.actors_surface, (0, 0)))
         
         angle = 0.0 if self.hero_actor is None else \
         self.hero_transform.rotation.yaw + 90.0

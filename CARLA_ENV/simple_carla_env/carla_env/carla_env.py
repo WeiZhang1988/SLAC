@@ -8,6 +8,7 @@ from gym.spaces import Dict, Discrete, Box, Tuple
 import carla
 from carla_env.bird_eye_view import BirdEyeView, PIXELS_PER_METER, \
 PIXELS_AHEAD_VEHICLE
+from carla_env.global_route_planner import GlobalRoutePlanner
 
 class CustomTimer:
     def __init__(self):
@@ -367,6 +368,10 @@ class CarlaEnv(gym.Env):
         self.pedestrian_controller_list = []
         
         self.target_pos = None #TargetPosition(carla.Transform())
+        
+        self.route_planner_global = GlobalRoutePlanner(self.map,2.0)
+        self.waypoints = None
+        
         self.current_step = 0
         self.reward = 0.0
         self.done = False
@@ -442,6 +447,7 @@ class CarlaEnv(gym.Env):
     
         self.remove_all_actors()
         self.create_all_actors()
+        self.world.tick()
 
         self.reward = 0.0
         self.done = False
@@ -527,9 +533,18 @@ class CarlaEnv(gym.Env):
         self.world.try_spawn_actor(ego_vehicle_bp, \
         random.choice(self.spawn_points))
         self.vehicle_list.append(self.ego_vehicle)
+        
+        self.world.tick()
+        
+        self.waypoints = \
+        self.route_planner_global.trace_route( \
+        self.ego_vehicle.get_location(), \
+        self.target_pos.transform.location)
+        
         bbe_x = self.ego_vehicle.bounding_box.extent.x
         bbe_y = self.ego_vehicle.bounding_box.extent.y
         bbe_z = self.ego_vehicle.bounding_box.extent.z
+        print("bbe_z ",bbe_z)
         
         self.left_camera = SensorManager(self.world, 'RGBCamera', \
         carla.Transform(carla.Location(x=0, z=bbe_z+1.4), \
@@ -600,7 +615,8 @@ class CarlaEnv(gym.Env):
         self.bev = BirdEyeView(self.world, \
         PIXELS_PER_METER, PIXELS_AHEAD_VEHICLE, \
         self.display_size, [2, 0], [2, 2], \
-        self.ego_vehicle, self.target_pos.transform)
+        self.ego_vehicle, self.target_pos.transform, \
+        self.waypoints)
         self.display_manager.add_birdeyeview(self.bev)
         
         self.collision = SensorManager(self.world, 'Collision', \

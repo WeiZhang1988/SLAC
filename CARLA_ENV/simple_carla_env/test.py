@@ -13,7 +13,7 @@ params ={
 'sync': True,
 'no_render': False,
 'display_sensor': True,
-'ego_filter': 'vehicle.dodge.charger_police_2020',
+'ego_filter': 'vehicle.*', #'vehicle.dodge.charger_police_2020',
 'num_vehicles': 20,
 'num_pedestrians': 20,
 }
