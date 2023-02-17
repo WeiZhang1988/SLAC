@@ -8,7 +8,7 @@ import gc
 params ={
 'carla_port': 2000,
 'map_name': 'Town01',
-'window_resolution': [1620,1080],
+'window_resolution': [1080,1080],
 'grid_size': [3,3],
 'sync': True,
 'no_render': False,
@@ -17,6 +17,7 @@ params ={
 'num_vehicles': 20,
 'num_pedestrians': 20,
 'enable_route_planner': True, 
+'sensors_to_amount': ['left_rgb', 'front_rgb', 'right_rgb', 'rear_rgb', 'top_rgb', 'lidar', 'radar', 'gnss', 'imu']
 }
 
 env = gym.make('CarlaRlEnv-v0', params=params)
@@ -32,7 +33,7 @@ while True:
         done = False
     while not done:
         env.display()
-        action=(np.array([0.8,0.0,0.0]),np.array([False]))
+        action=(np.array([0.8,0.0,0.1]),np.array([False]))
         obs, rwd, done, info = env.step(action)
     gc.collect()
     print("memory usage",tracemalloc.get_traced_memory())
