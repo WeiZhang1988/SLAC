@@ -17,7 +17,8 @@ params ={
 'num_vehicles': 20,
 'num_pedestrians': 20,
 'enable_route_planner': True, 
-'sensors_to_amount': ['left_rgb', 'front_rgb', 'right_rgb', 'rear_rgb', 'top_rgb', 'lidar', 'radar', 'gnss', 'imu']
+'sensors_to_amount': ['left_rgb', 'front_rgb', 'right_rgb', 'rear_rgb', \
+'top_rgb', 'lidar', 'radar', 'gnss', 'imu'],
 }
 
 env = gym.make('CarlaRlEnv-v0', params=params)

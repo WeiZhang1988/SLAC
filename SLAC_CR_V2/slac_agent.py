@@ -15,12 +15,12 @@ class SlacAgent(object):
 			gamma=0.995, reward_scale_factor=2.0, target_entropy=-3.0):
 		#------------------------------------------------------------
 		self.replay_buffer = ReplayBuffer()
-		self.actor_network = ActorNetwork(name="actor")
-		self.critic_network1 = CriticNetwork(name="critic1")
-		self.critic_network2 = CriticNetwork(name="critic2")
-		self.target_critic_network1 = CriticNetwork(name="target_critic1")
-		self.target_critic_network2 = CriticNetwork(name="target_critic2")
-		self.model_network = ModelNetwork(name="model")
+		self.actor_network = ActorNetwork(name="actor", chkpt_dir='tmp/actor')
+		self.critic_network1 = CriticNetwork(name="critic1", chkpt_dir='tmp/critic1')
+		self.critic_network2 = CriticNetwork(name="critic2", chkpt_dir='tmp/critic2')
+		self.target_critic_network1 = CriticNetwork(name="target_critic1", chkpt_dir='tmp/target_critic1')
+		self.target_critic_network2 = CriticNetwork(name="target_critic2", chkpt_dir='tmp/target_critic2')
+		self.model_network = ModelNetwork(name="latent_model", chkpt_dir='tmp/latent_model')
 		#------------------------------------------------------------
 		self.actor_optimizer = Adam(learning_rate=actor_learning_rate)
 		self.critic1_optimizer = Adam(learning_rate=critic_learning_rate)
@@ -106,24 +106,26 @@ class SlacAgent(object):
 	#----------------------------------------------------------------
 	def save_models(self):
 		print('... saving models ...')
-		self.actor_network.save_weights(self.actor_network.checkpoint_file)
-		self.critic_network1.save_weights(self.critic_network1.checkpoint_file)
-		self.critic_network2.save_weights(self.critic_network2.checkpoint_file)
-		self.target_critic_network1.save_weights(self.target_critic_network1.checkpoint_file)
-		self.target_critic_network2.save_weights(self.target_critic_network2.checkpoint_file)
-		self.model_network.save_weights(self.model_network.checkpoint_file)
-		with open('tmp/slac/log_alpha.pickle', 'wb') as f:
+		opt = tf.train.CheckpointOptions(experimental_enable_async_checkpoint=True)
+		self.actor_network.save_weights(self.actor_network.checkpoint_file, options=opt)
+		self.critic_network1.save_weights(self.critic_network1.checkpoint_file, options=opt)
+		self.critic_network2.save_weights(self.critic_network2.checkpoint_file, options=opt)
+		self.target_critic_network1.save_weights(self.target_critic_network1.checkpoint_file, options=opt)
+		self.target_critic_network2.save_weights(self.target_critic_network2.checkpoint_file, options=opt)
+		self.model_network.save_weights(self.model_network.checkpoint_file, options=opt)
+		with open('tmp/alpha/log_alpha.pickle', 'wb') as f:
 			pickle.dump(self.log_alpha, f)
 	#----------------------------------------------------------------
 	def load_models(self):
 		print('... loading models ...')
-		self.actor_network.load_weights(self.actor_network.checkpoint_file)
-		self.critic_network1.load_weights(self.critic_network1.checkpoint_file)
-		self.critic_network2.load_weights(self.critic_network2.checkpoint_file)
-		self.target_critic_network1.load_weights(self.target_critic_network1.checkpoint_file)
-		self.target_critic_network2.load_weights(self.target_critic_network2.checkpoint_file)
-		self.model_network.load_weights(self.model_network.checkpoint_file)
-		with open('tmp/slac/log_alpha.pickle', 'rb') as f:
+		opt = tf.train.CheckpointOptions(experimental_enable_async_checkpoint=True)
+		self.actor_network.load_weights(self.actor_network.checkpoint_file, options=opt)
+		self.critic_network1.load_weights(self.critic_network1.checkpoint_file, options=opt)
+		self.critic_network2.load_weights(self.critic_network2.checkpoint_file, options=opt)
+		self.target_critic_network1.load_weights(self.target_critic_network1.checkpoint_file, options=opt)
+		self.target_critic_network2.load_weights(self.target_critic_network2.checkpoint_file, options=opt)
+		self.model_network.load_weights(self.model_network.checkpoint_file, options=opt)
+		with open('tmp/alpha/log_alpha.pickle', 'rb') as f:
 			self.log_alpha = pickle.load(f)
 	#----------------------------------------------------------------
 	def filter_out_before_first_step(self, step_types, filter_objects):

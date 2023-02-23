@@ -1,5 +1,6 @@
 import gym
 import numpy as np
+import tensorflow as tf
 
 class WrappedGymEnv(gym.Wrapper):
 	def __init__(self, env, steps_com):
@@ -14,7 +15,8 @@ class WrappedGymEnv(gym.Wrapper):
 	def reset(self):
 		self.num_step = 0
 		obs = self.env.reset().astype("float32")/self.observation_high
-		obs = obs[16:80,16:80,:]
+		#obs = obs[16:80,16:80,:]
+		obs = tf.image.resize(obs, [64,64]).numpy().astype(np.float32)
 		return obs
 	def step(self, action):
 		act = self.action_low + (action + 1.0) * 0.5 * (self.action_high - self.action_low)
@@ -34,5 +36,6 @@ class WrappedGymEnv(gym.Wrapper):
 			step_type = 0
 		self.num_step += 1
 		obs = observation.astype("float32")/self.observation_high
-		obs = obs[16:80,16:80,:]
+		#obs = obs[16:80,16:80,:]
+		obs = tf.image.resize(obs, [64,64]).numpy().astype(np.float32)
 		return obs, [total_reward], [step_type], [done], info

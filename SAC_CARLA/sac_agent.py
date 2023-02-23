@@ -14,11 +14,11 @@ class SacAgent(object):
 			gamma=0.995, reward_scale_factor=2.0, target_entropy=-3.0):
 		#------------------------------------------------------------
 		self.replay_buffer = ReplayBuffer()
-		self.actor_network = ActorNetwork(name="actor")
-		self.critic_network1 = CriticNetwork(name="critic1")
-		self.critic_network2 = CriticNetwork(name="critic2")
-		self.target_critic_network1 = CriticNetwork(name="target_critic1")
-		self.target_critic_network2 = CriticNetwork(name="target_critic2")
+		self.actor_network = ActorNetwork(name="actor", chkpt_dir='tmp/actor')
+		self.critic_network1 = CriticNetwork(name="critic1", chkpt_dir='tmp/critic1')
+		self.critic_network2 = CriticNetwork(name="critic2", chkpt_dir='tmp/critic2')
+		self.target_critic_network1 = CriticNetwork(name="target_critic1", chkpt_dir='tmp/target_critic1')
+		self.target_critic_network2 = CriticNetwork(name="target_critic2", chkpt_dir='tmp/target_critic2')
 		#------------------------------------------------------------
 		self.actor_optimizer = Adam(learning_rate=actor_learning_rate)
 		self.critic1_optimizer = Adam(learning_rate=critic_learning_rate)
@@ -38,29 +38,25 @@ class SacAgent(object):
 		self.update_network_parameters(tau=1.0)
 		#------------------------------------------------------------
 		self.learning_step = 0
-		self.log_alpha = tf.Variable(0.0,dtype=tf.float32)
+		self.log_alpha = tf.Variable(10.0,dtype=tf.float32)
 		self.target_entropy = tf.constant(target_entropy,dtype=tf.float32)
 	#----------------------------------------------------------------
-	def choose_action(self, image, gnss, target):
+	def choose_action(self, image):
 		image_tensor = tf.convert_to_tensor([image],dtype=tf.float32)
-		gnss_tensor = tf.convert_to_tensor([gnss],dtype=tf.float32)
-		target_tensor = tf.convert_to_tensor([target],dtype=tf.float32)
-		action, _ = self.actor_network.sample_normal(image_tensor,gnss_tensor,target_tensor)
+		action, _ = self.actor_network.sample_normal(image_tensor)
 		action = tf.squeeze(action,axis=0).numpy()
 		#------------------------------------------------------------
 		return action
 	#----------------------------------------------------------------
-	def choose_action_deterministic(self, image, gnss, target):
+	def choose_action_deterministic(self, image):
 		image_tensor = tf.convert_to_tensor([image],dtype=tf.float32)
-		gnss_tensor = tf.convert_to_tensor([gnss],dtype=tf.float32)
-		target_tensor = tf.convert_to_tensor([target],dtype=tf.float32)
-		action, _ = self.actor_network(image_tensor,gnss_tensor,target_tensor)
+		action, _ = self.actor_network(image_tensor)
 		action = tf.squeeze(action,axis=0).numpy()
 		#------------------------------------------------------------
 		return action
 	#----------------------------------------------------------------
-	def store_transition(self, image, gnss, target, action, reward, step_type, done, next_image, next_gnss, next_target):
-		self.replay_buffer.store_transition(image, gnss, target, action, reward, step_type, done, next_image, next_gnss, next_target)
+	def store_transition(self, image, action, reward, step_type, done, next_image):
+		self.replay_buffer.store_transition(image, action, reward, step_type, done, next_image)
 	#----------------------------------------------------------------
 	def update_network_parameters(self, tau=None):
 		if tau is None:
@@ -85,8 +81,9 @@ class SacAgent(object):
 		self.critic_network2.save_weights(self.critic_network2.checkpoint_file)
 		self.target_critic_network1.save_weights(self.target_critic_network1.checkpoint_file)
 		self.target_critic_network2.save_weights(self.target_critic_network2.checkpoint_file)
-		with open('tmp/sac/log_alpha.pickle', 'wb') as f:
+		with open('tmp/alpha/log_alpha.pickle', 'wb') as f:
 			pickle.dump(self.log_alpha, f)
+		print('--- saving done ---')
 	#----------------------------------------------------------------
 	def load_models(self):
 		print('... loading models ...')
@@ -95,24 +92,25 @@ class SacAgent(object):
 		self.critic_network2.load_weights(self.critic_network2.checkpoint_file)
 		self.target_critic_network1.load_weights(self.target_critic_network1.checkpoint_file)
 		self.target_critic_network2.load_weights(self.target_critic_network2.checkpoint_file)
-		with open('tmp/sac/log_alpha.pickle', 'rb') as f:
+		with open('tmp/alpha/log_alpha.pickle', 'rb') as f:
 			self.log_alpha = pickle.load(f)
+		print('--- loading done ---')
 	#----------------------------------------------------------------
 	def learn(self):
 		if self.replay_buffer.mem_cntr < self.batch_size:
 			return
 		#------------------------------------------------------------
-		images, gnsses, targets, actions, rewards, step_types, dones, next_images, next_gnsses, next_targets = \
+		images, actions, rewards, step_types, dones, next_images = \
 			self.replay_buffer.sample_buffer(self.batch_size)
 		#------------------------------------------------------------
 		with tf.GradientTape(persistent=True) as tape:
-			next_new_policy_actions, next_new_policy_log_probs = self.actor_network.sample_normal(next_images, next_gnsses, next_targets)
-			target_critic1 = self.target_critic_network1(next_images, next_gnsses, next_targets, next_new_policy_actions)
-			target_critic2 = self.target_critic_network2(next_images, next_gnsses, next_targets, next_new_policy_actions)
+			next_new_policy_actions, next_new_policy_log_probs = self.actor_network.sample_normal(next_images)
+			target_critic1 = self.target_critic_network1(next_images, next_new_policy_actions)
+			target_critic2 = self.target_critic_network2(next_images, next_new_policy_actions)
 			target_critic = tf.minimum(target_critic1, target_critic2)
 			td_target = self.reward_scale_factor * rewards + (1.0 - tf.cast(dones, dtype=tf.float32)) * self.gamma * (target_critic - tf.exp(self.log_alpha) * next_new_policy_log_probs)
-			critic1_old_policy = self.critic_network1(images, gnsses, targets, actions)
-			critic2_old_policy = self.critic_network2(images, gnsses, targets, actions)
+			critic1_old_policy = self.critic_network1(images, actions)
+			critic2_old_policy = self.critic_network2(images, actions)
 			critic_network1_loss = 0.5 * tf.math.reduce_mean(tf.math.square(critic1_old_policy - td_target))
 			critic_network2_loss = 0.5 * tf.math.reduce_mean(tf.math.square(critic2_old_policy - td_target))
 		critic_network1_gradient = tape.gradient(critic_network1_loss, self.critic_network1.trainable_variables)
@@ -121,16 +119,16 @@ class SacAgent(object):
 		self.critic_network2.optimizer.apply_gradients(zip(critic_network2_gradient, self.critic_network2.trainable_variables))
 		#------------------------------------------------------------
 		with tf.GradientTape() as tape:
-			new_policy_actions, new_policy_log_probs = self.actor_network.sample_normal(images, gnsses, targets)
-			critic1_new_policy = self.critic_network1(images, gnsses, targets, new_policy_actions)
-			critic2_new_policy = self.critic_network2(images, gnsses, targets, new_policy_actions)
+			new_policy_actions, new_policy_log_probs = self.actor_network.sample_normal(images)
+			critic1_new_policy = self.critic_network1(images, new_policy_actions)
+			critic2_new_policy = self.critic_network2(images, new_policy_actions)
 			critic_new_policy = tf.math.minimum(critic1_new_policy, critic2_new_policy)
 			actor_network_loss = tf.math.reduce_mean(tf.exp(self.log_alpha) * new_policy_log_probs - critic_new_policy)
 		actor_network_gradient = tape.gradient(actor_network_loss, self.actor_network.trainable_variables)
 		self.actor_network.optimizer.apply_gradients(zip(actor_network_gradient, self.actor_network.trainable_variables))
 		#------------------------------------------------------------
 		with tf.GradientTape() as tape:
-			new_policy_actions, new_policy_log_probs = self.actor_network.sample_normal(images, gnsses, targets)
+			new_policy_actions, new_policy_log_probs = self.actor_network.sample_normal(images)
 			alpha_loss = -tf.exp(self.log_alpha) * (new_policy_log_probs + self.target_entropy) 
 			alpha_loss = tf.nn.compute_average_loss(alpha_loss) 
 		alpha_gradient = tape.gradient(alpha_loss, [self.log_alpha])

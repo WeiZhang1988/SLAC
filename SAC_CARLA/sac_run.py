@@ -15,7 +15,7 @@ def main():
 	params ={
 	'carla_port': 2000,
 	'map_name': 'Town01',
-	'window_resolution': [1620,1080],
+	'window_resolution': [1080,1080],
 	'grid_size': [3,3],
 	'sync': True,
 	'no_render': False,
@@ -24,15 +24,17 @@ def main():
 	'num_vehicles': 20,
 	'num_pedestrians': 20,
 	'enable_route_planner': True, 
+	'sensors_to_amount': ['front_rgb'],
 	}
 	#simulation setting
 	load_checkpoint = False
 	activate_learning = True
-	activate_pre_learning_random_game = True
+	activate_pre_learning_random_game = False
+	num_learning_iter_in_pre_learning = 30
 	render_animation = True
 	env_name = "CarlaRlEnv-v0"
 	#hyper parameters
-	num_random_episodes = 10
+	num_random_episodes = 30
 	num_episodes = 10000
 	num_learning_iter = 10
 	figure_file = 'tmp/sac_carla.png'
@@ -54,42 +56,39 @@ def main():
 			step = 0
 			while not done:
 				action = \
-				np.random.normal([1.0, -1.0, 0.0],[1.0, 1.0, 1.0],env.action_space.shape)
+				np.random.normal([1.0, 0.0],[0.3, 0.3],env.action_space.shape)
+				action = np.clip(action, -np.ones(2), np.ones(2))
 				next_observation, reward, step_type, done, info = \
 				env.step(action)
 				if render_animation:
 					env.display()
-				sacAgent.store_transition(observation['front_camera'], \
-				observation['gnss'], observation['trgt_pos'], \
+				sacAgent.store_transition(observation['bev'], \
 				action, reward, step_type, done, \
-				next_observation['front_camera'], \
-				next_observation['gnss'], \
-				next_observation['trgt_pos'])
+				next_observation['bev'])
 				observation = next_observation
 				step += 1
+			if activate_learning:
+				for _ in range(num_learning_iter_in_pre_learning):	
+					sacAgent.learn()
 	#----------------------------------------------------------------
 	avg_scores = []
 	try:
 		for i in range(num_episodes):
 			observation = env.reset()
-			image = observation['front_camera']
-			gnss = observation['gnss']
-			target = observation['trgt_pos']
 			done = False
 			score = 0
 			step = 0
 			while not done:
-				action = sacAgent.choose_action(image,gnss,target)
+				image = observation['bev']
+				action = sacAgent.choose_action(image)
 				next_observation, reward, step_type, done, info = \
 				env.step(action)
-				next_image = next_observation['front_camera']
-				next_gnss = next_observation['gnss']
-				next_target = next_observation['trgt_pos'] 
+				next_image = next_observation['bev']
 				if render_animation:
 					env.display()
-				sacAgent.store_transition(image, gnss, target, \
+				sacAgent.store_transition(image, \
 				action, reward, step_type, done, \
-				next_image, next_gnss, next_target)
+				next_image)
 				observation = next_observation
 				score += reward[0]
 				step += 1

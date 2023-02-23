@@ -13,7 +13,7 @@ def main():
 	#simulation setting
 	num_episodes = 5000
 	render_animation = True
-	env_name = "CarRacing-v1"
+	env_name = 'CarRacing-v1'
 	#----------------------------------------------------------------
 	env = WrappedGymEnv(gym.make(env_name),1)	
 	slacAgent = SlacAgent()

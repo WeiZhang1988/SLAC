@@ -922,7 +922,7 @@ class BirdEyeView(object):
             y=p[0].transform.location.y))
         corners = [world_to_pixel(p) for p in corners]
         if len(corners) > 2:
-            pygame.draw.lines(surface, color, False, corners, 20)
+            pygame.draw.lines(surface, color, False, corners, 10)
         
     def clip_surfaces(self, clipping_rect):
         self.actors_surface.set_clip(clipping_rect)

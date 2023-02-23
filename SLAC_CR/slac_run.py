@@ -1,24 +1,27 @@
 #!/usr/bin/env python
 
 # Copyright (c) 2022: Wei ZHANG (wei_zhang_1988_outlook.com).
-
+import os
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import gym
 import numpy as np
 import collections
 from wrapped_gym_env import WrappedGymEnv
 from slac_agent import SlacAgent
 import matplotlib.pyplot as plt
+import dill as pickle
 
 def main():
 	#simulation setting
-	load_checkpoint = True
+	load_checkpoint = False
 	activate_learning = True
 	activate_pre_learning_random_game = False
 	render_animation = False
-	env_name = "CarRacing-v1"
+	env_name = 'CarRacing-v1'
 	#hyper parameters
 	num_random_episodes = 50
-	num_episodes = 10000
+	num_episodes = 20000
 	num_learning_iter = 10
 	figure_file = 'tmp/slac_cr.png'
 	#----------------------------------------------------------------
@@ -33,7 +36,7 @@ def main():
 	#----------------------------------------------------------------
 	if activate_pre_learning_random_game:
 		for i in range(num_random_episodes):
-			print("enter pre-learning game ", i, " ... ")
+			print('enter pre-learning game ', i, ' ... ')
 			observation = env.reset()
 			done = False
 			step = 0

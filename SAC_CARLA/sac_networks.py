@@ -31,7 +31,7 @@ class ConvLayer(keras.layers.Layer):
 #--------------------------------------------------------------------
 class CriticNetwork(keras.Model):
 	def __init__(self, fc1_dims=512, fc2_dims=256, fc3_dims=128, \
-			name='critic', chkpt_dir='tmp/sac'):
+			name='critic', chkpt_dir='tmp/critic'):
 		super(CriticNetwork, self).__init__()
 		#------------------------------------------------------------
 		self.fc1_dims = fc1_dims
@@ -42,9 +42,7 @@ class CriticNetwork(keras.Model):
 		self.checkpoint_dir = chkpt_dir
 		self.checkpoint_file = os.path.join(self.checkpoint_dir, name+'_sac')
 		#------------------------------------------------------------
-		self.image_input = keras.layers.InputLayer(input_shape=(96,96,3))
-		self.gnss_input = keras.layers.InputLayer(input_shape=(3,))
-		self.target_input = keras.layers.InputLayer(input_shape=(3,))
+		self.image_input = keras.layers.InputLayer(input_shape=(180,180,3))
 		self.action_input = keras.layers.InputLayer(input_shape=(3,))
 		#------------------------------------------------------------
 		self.conv = ConvLayer()
@@ -53,13 +51,11 @@ class CriticNetwork(keras.Model):
 		self.fc3 = keras.layers.Dense(self.fc3_dims, activation='relu')
 		self.critic = keras.layers.Dense(1, activation=None)
 	#----------------------------------------------------------------
-	def call(self, image, gnss, target, action):
+	def call(self, image, action):
 		image_output = self.image_input(image)
-		gnss_output = self.gnss_input(gnss)
-		target_output = self.target_input(target)
 		action_output = self.action_input(action)
 		conv_output = self.conv(image_output)
-		fc1_output = self.fc1(tf.concat([conv_output,gnss_output,target_output,action], axis=1))
+		fc1_output = self.fc1(tf.concat([conv_output, action], axis=1))
 		fc2_output = self.fc2(fc1_output)
 		fc3_output = self.fc3(fc2_output)
 		#------------------------------------------------------------
@@ -68,9 +64,9 @@ class CriticNetwork(keras.Model):
 		return critic
 #--------------------------------------------------------------------
 class ActorNetwork(keras.Model):
-	def __init__(self, action_shape=(3,), \
+	def __init__(self, action_shape=(2,), \
 			fc1_dims=512, fc2_dims=256, fc3_dims=128, \
-			name='actor', chkpt_dir='tmp/sac'):
+			name='actor', chkpt_dir='tmp/actor'):
 		super(ActorNetwork, self).__init__()
 		#------------------------------------------------------------
 		self.action_shape = action_shape[0]
@@ -85,9 +81,7 @@ class ActorNetwork(keras.Model):
 		#------------------------------------------------------------
 		self.noise = 1e-6
 		#------------------------------------------------------------
-		self.image_input = keras.layers.InputLayer(input_shape=(96,96,3))
-		self.gnss_input = keras.layers.InputLayer(input_shape=(3,))
-		self.target_input = keras.layers.InputLayer(input_shape=(3,))
+		self.image_input = keras.layers.InputLayer(input_shape=(180,180,3))
 		#------------------------------------------------------------
 		self.conv = ConvLayer()
 		self.fc1 = keras.layers.Dense(self.fc1_dims, activation='relu')
@@ -96,12 +90,10 @@ class ActorNetwork(keras.Model):
 		self.mu = keras.layers.Dense(self.action_shape, activation=None)
 		self.sigma = keras.layers.Dense(self.action_shape, activation='sigmoid')
 	#----------------------------------------------------------------
-	def call(self, image, gnss, target):
+	def call(self, image):
 		image_output = self.image_input(image)
-		gnss_output = self.gnss_input(gnss)
-		target_output = self.target_input(target)
 		conv_output = self.conv(image_output)
-		fc1_output = self.fc1(tf.concat([conv_output,gnss_output,target_output], axis=1))
+		fc1_output = self.fc1(tf.concat([conv_output], axis=1))
 		fc2_output = self.fc2(fc1_output)
 		fc3_output = self.fc3(fc2_output)
 		mu = self.mu(fc3_output)
@@ -109,8 +101,8 @@ class ActorNetwork(keras.Model):
 		#------------------------------------------------------------
 		return mu, sigma
 	#----------------------------------------------------------------
-	def sample_normal(self, image, gnss, target, reparameterize=True):
-		mu, sigma = self.call(image, gnss, target)
+	def sample_normal(self, image, reparameterize=True):
+		mu, sigma = self.call(image)
 		probabilities = tfp.distributions.MultivariateNormalDiag(mu, sigma)
 		#------------------------------------------------------------
 		if reparameterize:

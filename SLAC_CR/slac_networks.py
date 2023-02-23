@@ -12,8 +12,10 @@ class ConvLayer(keras.layers.Layer):
 			conv2_filter=16,  conv2_kernel=3, conv2_stride=2, conv2_padding='SAME', \
 			conv3_filter=32,  conv3_kernel=3, conv3_stride=2, conv3_padding='SAME', \
 			conv4_filter=64,  conv4_kernel=3, conv4_stride=2, conv4_padding='SAME', \
-			conv5_filter=64,  conv5_kernel=4, conv5_stride=1, conv5_padding='VALID'):
+			conv5_filter=64,  conv5_kernel=4, conv5_stride=1, conv5_padding='VALID', \
+			name = 'conv_layer'):
 		super(ConvLayer, self).__init__()
+		#self.name = name
 		self.conv1 = keras.layers.Conv2D(conv1_filter, conv1_kernel, conv1_stride, conv1_padding, activation=tf.nn.leaky_relu)
 		self.conv2 = keras.layers.Conv2D(conv2_filter, conv2_kernel, conv2_stride, conv2_padding, activation=tf.nn.leaky_relu)
 		self.conv3 = keras.layers.Conv2D(conv3_filter, conv3_kernel, conv3_stride, conv3_padding, activation=tf.nn.leaky_relu)
@@ -34,8 +36,10 @@ class TransConvLayer(keras.layers.Layer):
 			transconv2_filter=32,  transconv2_kernel=3, transconv2_stride=2, transconv2_padding='SAME', \
 			transconv3_filter=16,  transconv3_kernel=3, transconv3_stride=2, transconv3_padding='SAME', \
 			transconv4_filter=8,  transconv4_kernel=3, transconv4_stride=2, transconv4_padding='SAME', \
-			transconv5_filter=3, transconv5_kernel=5, transconv5_stride=2, transconv5_padding='SAME'):
+			transconv5_filter=3, transconv5_kernel=5, transconv5_stride=2, transconv5_padding='SAME', \
+			name='trans_conv_layer'):
 		super(TransConvLayer, self).__init__()
+		#self.name = name
 		self.transconv1 = keras.layers.Conv2DTranspose(transconv1_filter, transconv1_kernel, transconv1_stride, transconv1_padding, activation=tf.nn.leaky_relu)
 		self.transconv2 = keras.layers.Conv2DTranspose(transconv2_filter, transconv2_kernel, transconv2_stride, transconv2_padding, activation=tf.nn.leaky_relu)
 		self.transconv3 = keras.layers.Conv2DTranspose(transconv3_filter, transconv3_kernel, transconv3_stride, transconv3_padding, activation=tf.nn.leaky_relu)
@@ -58,13 +62,13 @@ class CriticNetwork(keras.Model):
 		self.fc1_dims = fc1_dims
 		self.fc2_dims = fc2_dims
 		#------------------------------------------------------------
-		self.model_name = name
+		#self.name = name
 		self.checkpoint_dir = chkpt_dir
-		self.checkpoint_file = os.path.join(self.checkpoint_dir, name+'_sac')
+		self.checkpoint_file = os.path.join(self.checkpoint_dir, name+'_slac_cr')
 		#------------------------------------------------------------
-		self.fc1 = keras.layers.Dense(self.fc1_dims, activation='relu')
-		self.fc2 = keras.layers.Dense(self.fc2_dims, activation='relu')
-		self.critic = keras.layers.Dense(1, activation=None)
+		self.fc1 = keras.layers.Dense(self.fc1_dims, activation='relu', name='fc1')
+		self.fc2 = keras.layers.Dense(self.fc2_dims, activation='relu', name='fc2')
+		self.critic = keras.layers.Dense(1, activation=None, name='out')
 	#----------------------------------------------------------------
 	def call(self, latent1, latent2, action):
 		fc1_output = self.fc1(tf.concat([latent1,action], axis=1))
@@ -85,16 +89,16 @@ class ActorNetwork(keras.Model):
 		self.fc1_dims = fc1_dims
 		self.fc2_dims = fc2_dims
 		#------------------------------------------------------------
-		self.model_name = name
+		#self.name = name
 		self.checkpoint_dir = chkpt_dir
-		self.checkpoint_file = os.path.join(self.checkpoint_dir, name+'_sac')
+		self.checkpoint_file = os.path.join(self.checkpoint_dir, name+'_slac_cr')
 		#------------------------------------------------------------
 		self.noise = 1e-6
 		#------------------------------------------------------------
-		self.fc1 = keras.layers.Dense(self.fc1_dims, activation='relu')
-		self.fc2 = keras.layers.Dense(self.fc2_dims, activation='relu')
-		self.mu = keras.layers.Dense(self.action_shape, activation=None)
-		self.sigma = keras.layers.Dense(self.action_shape, activation='sigmoid')
+		self.fc1 = keras.layers.Dense(self.fc1_dims, activation='relu', name='fc1')
+		self.fc2 = keras.layers.Dense(self.fc2_dims, activation='relu', name='fc2')
+		self.mu = keras.layers.Dense(self.action_shape, activation=None, name='mu')
+		self.sigma = keras.layers.Dense(self.action_shape, activation='sigmoid', name='sigma')
 	#----------------------------------------------------------------
 	def call(self, feature):
 		fc1_output = self.fc1(feature)
@@ -125,8 +129,10 @@ class ActorNetwork(keras.Model):
 #--------------------------------------------------------------------
 class MultivariateNormalLayer(keras.layers.Layer):
 	# in current use case, expected inputs are of shape [batch, base_shape], outputs are of shape [batch, sequence, output_size]
-	def __init__(self, output_size=32, sigma=None, fc1_dims=64, fc2_dims=64):
+	def __init__(self, output_size=32, sigma=None, fc1_dims=64, fc2_dims=64, \
+	name='multivariate_nomal_layer'):
 		super(MultivariateNormalLayer, self).__init__()
+		#self.name = name
 		self.output_size = output_size
 		if sigma == None:
 			self.generate_sigma = True
@@ -157,8 +163,9 @@ class MultivariateNormalLayer(keras.layers.Layer):
 #--------------------------------------------------------------------
 class ConstantMultivariateNormalLayer(keras.layers.Layer):
 	# in current use case, expected inputs are of shape [batch, base_shape], outputs are of shape [batch, sequence, output_size]
-	def __init__(self, output_size=32, sigma=None):
+	def __init__(self, output_size=32, sigma=None, name='const_multi_normal_layer'):
 		super(ConstantMultivariateNormalLayer, self).__init__()
+		#self.name = name
 		self.output_size = output_size
 		self.sigma = sigma
 	#----------------------------------------------------------------
@@ -175,8 +182,9 @@ class ConstantMultivariateNormalLayer(keras.layers.Layer):
 #--------------------------------------------------------------------
 class Compressor(keras.layers.Layer):
 	# in current use case, expected inputs are of shape [batch, sequence, 64, 64, 3], outputs are of shape [batch, sequence, 64]
-	def __init__(self, feature_size=64):
+	def __init__(self, feature_size=64, name='compressor_layer'):
 		super(Compressor, self).__init__()
+		#self.name = name
 		self.feature_size = feature_size
 		self.conv = ConvLayer()
 	#----------------------------------------------------------------
@@ -190,8 +198,9 @@ class Compressor(keras.layers.Layer):
 #--------------------------------------------------------------------
 class Decoder(keras.layers.Layer):
 	# in current use case, expected inputs are of shape [batch*sequence, 1, 1, depth], outputs are of shape [batch, sequence, 64, 64, 3]
-	def __init__(self,sigma=0.1):
+	def __init__(self, sigma=0.1, name='decoder_layer'):
 		super(Decoder, self).__init__()
+		#self.name = name
 		self.sigma = sigma
 		self.transconv = TransConvLayer()
 	#----------------------------------------------------------------
@@ -213,9 +222,9 @@ class ModelNetwork(keras.Model):
 		self.latent1_size = latent1_size
 		self.latent2_size = latent2_size
 		#------------------------------------------------------------
-		self.model_name = name
+		#self.name = name
 		self.checkpoint_dir = chkpt_dir
-		self.checkpoint_file = os.path.join(self.checkpoint_dir, name+'_sac')
+		self.checkpoint_file = os.path.join(self.checkpoint_dir, name+'_slac_cr')
 		#------------------------------------------------------------
 		self.compressor = Compressor()
 		self.decoder = Decoder()

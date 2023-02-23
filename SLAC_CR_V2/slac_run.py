@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 # Copyright (c) 2022: Wei ZHANG (wei_zhang_1988_outlook.com).
-#import os
-#os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  
-#os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-
+import os
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+import time
 import gym
 import numpy as np
 import collections
@@ -14,14 +14,14 @@ import matplotlib.pyplot as plt
 
 def main():
 	#simulation setting
-	load_checkpoint = False
+	load_checkpoint = True
 	activate_learning = True
 	activate_pre_learning_random_game = False
 	render_animation = False
 	env_name = "CarRacing-v1"
 	#hyper parameters
 	num_random_episodes = 50
-	num_episodes = 20000
+	num_episodes = 40000
 	num_learning_iter = 10
 	figure_file = 'tmp/slac_cr.png'
 	#----------------------------------------------------------------

@@ -644,25 +644,30 @@ class BirdEyeView(object):
     def __init__(self, world, pixels_per_meter, pixels_ahead_vehicle, \
     display_size, display_pos, display_pos_global, hero_actor, \
     target_transform, waypoints = None):
+        # resource from outside
         self.world = world
         self.pixels_per_meter = pixels_per_meter
+        self.pixels_ahead_vehicle = pixels_ahead_vehicle
         self.display_size = display_size
         self.display_pos = display_pos
         self.display_pos_global = display_pos_global
-        self.pixels_ahead_vehicle = pixels_ahead_vehicle
+        self.hero_actor = hero_actor
+        self.target_transform = target_transform
+        self.waypoints = waypoints
+        
+        # self created resource
         self.server_clock = pygame.time.Clock()
         self.surface = pygame.Surface(display_size).convert()
         self.surface.set_colorkey(COLOR_BLACK)
         self.surface_global = pygame.Surface(display_size).convert()
         self.surface_global.set_colorkey(COLOR_BLACK)
-        self.measure_data = None
+        self.measure_data = np.zeros((display_size[0],display_size[1],3), dtype=np.uint8)
         
         # World data
         self.town_map = self.world.get_map()
         self.actors_with_transforms = []
         
         # Hero actor
-        self.hero_actor = hero_actor
         if self.hero_actor is not None:
             self.hero_id = self.hero_actor.id
             self.hero_transform = self.hero_actor.get_transform()
@@ -670,10 +675,6 @@ class BirdEyeView(object):
             self.hero_id = None
             self.hero_transform = None
             
-        self.target_transform = target_transform
-        
-        self.waypoints = waypoints
-        
         # Create Surfaces
         self.map_image = MapImage(self.world, self.town_map, \
         self.pixels_per_meter)
@@ -708,39 +709,21 @@ class BirdEyeView(object):
         weak_self, timestamp))
     
     def destroy(self):
-        if self.server_clock is not None:
-            del self.server_clock
-        if self.surface is not None:
-            del self.surface
-        if self.surface_global is not None:
-            del self.surface_global
-        if self.measure_data is not None:
-            del self.measure_data
-
-        self.actors_with_transforms = []
-
-        if self.hero_actor is not None:
-            del self.hero_actor
-        if self.hero_id is not None:
-            del self.hero_id
-        if self.hero_transform is not None:
-            del self.hero_transform
-        
-        if self.map_image is not None:
-            del self.map_image
-        
-        if self.actors_surface is not None:
-            del self.actors_surface
-        if self.waypoints_surface is not None:
-            del self.waypoints_surface
-        if self.hero_surface is not None:
-            del self.hero_surface
-        if self.result_surface is not None:
-            del self.result_surface
-        
-        if self.traffic_light_surfaces is not None:
-            del self.traffic_light_surfaces
-        
+        del self.server_clock
+        del self.surface
+        del self.surface_global
+        del self.measure_data
+        del self.town_map
+        del self.actors_with_transforms
+        del self.hero_id
+        del self.hero_transform
+        del self.map_image
+        del self.actors_surface
+        del self.waypoints_surface
+        del self.hero_surface
+        del self.result_surface
+        del self.traffic_light_surfaces            
+           
     @staticmethod
     def on_world_tick(weak_self, timestamp):
         self = weak_self()
@@ -915,14 +898,15 @@ class BirdEyeView(object):
         self.map_image.world_to_pixel)
     
     def render_waypoints(self, surface, waypoints, world_to_pixel):
+        #print("rendering waypoints")
         color = COLOR_CYAN
         corners = []
         for p in waypoints:
             corners.append(carla.Location(x=p[0].transform.location.x, \
             y=p[0].transform.location.y))
         corners = [world_to_pixel(p) for p in corners]
-        if len(corners) > 2:
-            pygame.draw.lines(surface, color, False, corners, 20)
+        for c in corners:
+            pygame.draw.circle(surface, color, c, 10)
         
     def clip_surfaces(self, clipping_rect):
         self.actors_surface.set_clip(clipping_rect)

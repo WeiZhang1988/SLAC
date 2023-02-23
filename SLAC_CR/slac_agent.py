@@ -14,12 +14,12 @@ class SlacAgent(object):
 			gamma=0.995, reward_scale_factor=2.0, target_entropy=-3.0):
 		#------------------------------------------------------------
 		self.replay_buffer = ReplayBuffer()
-		self.actor_network = ActorNetwork(name="actor")
-		self.critic_network1 = CriticNetwork(name="critic1")
-		self.critic_network2 = CriticNetwork(name="critic2")
-		self.target_critic_network1 = CriticNetwork(name="target_critic1")
-		self.target_critic_network2 = CriticNetwork(name="target_critic2")
-		self.model_network = ModelNetwork(name="model")
+		self.actor_network = ActorNetwork(name='actor', chkpt_dir='tmp/actor')
+		self.critic_network1 = CriticNetwork(name='critic1', chkpt_dir='tmp/critic1')
+		self.critic_network2 = CriticNetwork(name='critic2', chkpt_dir='tmp/critic2')
+		self.target_critic_network1 = CriticNetwork(name='target_critic1', chkpt_dir='tmp/target_critic1')
+		self.target_critic_network2 = CriticNetwork(name='target_critic2', chkpt_dir='tmp/target_critic2')
+		self.model_network = ModelNetwork(name='model', chkpt_dir='tmp/model')
 		#------------------------------------------------------------
 		self.actor_optimizer = Adam(learning_rate=actor_learning_rate)
 		self.critic1_optimizer = Adam(learning_rate=critic_learning_rate)
@@ -87,8 +87,9 @@ class SlacAgent(object):
 		self.target_critic_network1.save_weights(self.target_critic_network1.checkpoint_file)
 		self.target_critic_network2.save_weights(self.target_critic_network2.checkpoint_file)
 		self.model_network.save_weights(self.model_network.checkpoint_file)
-		with open('tmp/slac/log_alpha.pickle', 'wb') as f:
+		with open('tmp/alpha/log_alpha.pickle', 'wb') as f:
 			pickle.dump(self.log_alpha, f)
+		print('... saving done ...')
 	#----------------------------------------------------------------
 	def load_models(self):
 		print('... loading models ...')
@@ -98,8 +99,9 @@ class SlacAgent(object):
 		self.target_critic_network1.load_weights(self.target_critic_network1.checkpoint_file)
 		self.target_critic_network2.load_weights(self.target_critic_network2.checkpoint_file)
 		self.model_network.load_weights(self.model_network.checkpoint_file)
-		with open('tmp/slac/log_alpha.pickle', 'rb') as f:
+		with open('tmp/alpha/log_alpha.pickle', 'rb') as f:
 			self.log_alpha = pickle.load(f)
+		print("loading done")
 	#----------------------------------------------------------------
 	def learn(self):
 		if self.replay_buffer.mem_cntr < self.batch_size:
