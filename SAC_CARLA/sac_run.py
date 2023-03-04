@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 
 # Copyright (c) 2022: Wei ZHANG (wei_zhang_1988_outlook.com).
+import os
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 import gym
 import numpy as np
-import collections
+from collections import deque
 from wrapped_gym_env import WrappedGymEnv
 from sac_agent import SacAgent
 import matplotlib.pyplot as plt
@@ -43,7 +46,7 @@ def main():
 	sacAgent = SacAgent()
 	#----------------------------------------------------------------
 	best_score = -np.inf
-	score_history = []
+	score_history = deque([],maxlen=50)
 	#----------------------------------------------------------------
 	if load_checkpoint:
 		sacAgent.load_models()
@@ -68,8 +71,10 @@ def main():
 				observation = next_observation
 				step += 1
 			if activate_learning:
+				print('... learning ...')
 				for _ in range(num_learning_iter_in_pre_learning):	
 					sacAgent.learn()
+				print('--- learning done ---')
 	#----------------------------------------------------------------
 	avg_scores = []
 	try:
@@ -94,8 +99,8 @@ def main():
 				step += 1
 				done = done[0]
 			score_history.append(score)
-			avg_score = np.mean(score_history[-10:])
-			avg_scores.append(avg_score)
+			avg_score = np.mean(score_history)
+			#avg_scores.append(avg_score)
 			#------------------------------------------------------------
 			print('episode ', i, 'score %.1f' % score, 'avg score %.1f' % avg_score)
 			if avg_score > best_score:
@@ -103,13 +108,16 @@ def main():
 				sacAgent.save_models()
 			#------------------------------------------------------------
 			if activate_learning:
+				print('... learning ...')
 				for _ in range(num_learning_iter):	
 					sacAgent.learn()
+				print('... learning done ...')
 	#----------------------------------------------------------------
 	finally:
-		plt.plot(range(len(score_history)),score_history)
-		plt.plot(range(len(avg_scores)),avg_scores)
-		plt.show()
+		pass
+		#plt.plot(range(len(score_history)),score_history)
+		#plt.plot(range(len(avg_scores)),avg_scores)
+		#plt.show()
 #--------------------------------------------------------------------
 if __name__ == '__main__':
   main()

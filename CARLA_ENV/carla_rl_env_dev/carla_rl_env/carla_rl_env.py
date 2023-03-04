@@ -83,8 +83,7 @@ class DisplayManager:
 class SensorManager:
     def __init__(self, world, sensor_type, transform, attached, \
     sensor_options, display_size, display_pos):
-        self.surface = None
-        self.measure_data = None
+        # resources from outside
         self.world = world
         self.sensor_type = sensor_type
         self.transform = transform
@@ -92,10 +91,13 @@ class SensorManager:
         self.sensor_options = sensor_options
         self.display_size = display_size
         self.display_pos = display_pos
+        # self created resource
+        self.surface = None
+        self.measure_data = None
         self.sensor = self.init_sensor(sensor_type, transform, \
         attached, sensor_options, display_size)
-        self.timer = CustomTimer()
         
+        self.timer = CustomTimer()
         self.time_processing = 0.0
         self.tics_processing = 0
         
@@ -207,6 +209,13 @@ class SensorManager:
         if self.sensor.is_alive:
             self.sensor.destroy()
         
+        del self.sensor
+        del self.surface
+        del self.measure_data
+        del self.timer
+        del self.time_processing
+        del self.tics_processing
+        
     def save_rgb_image(self, image):
         t_start = self.timer.time()
         
@@ -313,6 +322,12 @@ class SensorManager:
 
 class TargetPosition(object):
     def __init__(self, transform):
+        # resource from outside
+        self.transform = transform
+        # self created resource
+        self.box = None
+        self.measure_data = None
+    
         self.set_transform(transform)
     
     def set_transform(self, transform):
@@ -324,12 +339,13 @@ class TargetPosition(object):
         self.transform.location.y, 
         self.transform.location.z])
         
-    def draw_box(self, debug):
-        debug.draw_box(self.box,carla.Rotation(), \
-        1.0, carla.Color(0,255,0), -1.0)
+    def destroy_target_pos(self):
+        del self.box
+        del self.measure_data
 
 class CarlaRlEnv(gym.Env):
     def __init__(self, params):
+        # resource from outside
         # parse parameters
         self.carla_port = params['carla_port']
         self.map_name = params['map_name']
@@ -343,16 +359,18 @@ class CarlaRlEnv(gym.Env):
         self.num_pedestrians = params['num_pedestrians']
         self.enable_route_planner = params['enable_route_planner']
         self.sensors_to_amount = params['sensors_to_amount']
+        
+        # self created resource
         # connet to server
-        self.client = carla.Client('localhost',self.carla_port)
+        self.client = carla.Client('localhost',self.carla_port) #
         self.client.set_timeout(10.0)
         # get world and map
-        self.world = self.client.get_world()
+        self.world = self.client.get_world() #
         self.world = self.client.load_world(self.map_name)
-        self.spectator = self.world.get_spectator()
-        self.map = self.world.get_map()
-        self.spawn_points = self.map.get_spawn_points()
-        self.original_settings = self.world.get_settings()
+        self.spectator = self.world.get_spectator() #
+        self.map = self.world.get_map() #
+        self.spawn_points = self.map.get_spawn_points() #
+        self.original_settings = self.world.get_settings() #
         if self.no_render:
             settings = self.world.get_settings()
             settings.no_rendering_mode = True
@@ -377,7 +395,7 @@ class CarlaRlEnv(gym.Env):
         
         self.target_pos = None #TargetPosition(carla.Transform())
         
-        self.route_planner_global = GlobalRoutePlanner(self.map,1.0)
+        self.route_planner_global = GlobalRoutePlanner(self.map,0.5)
         self.waypoints = None
         
         self.current_step = 0
@@ -392,6 +410,8 @@ class CarlaRlEnv(gym.Env):
         self.radar = None
         self.gnss = None
         self.imu = None
+        self.collision = None
+        self.lane_invasion = None
         
         # acc and brake percentage, steering percentage, and reverse flag
         self.action_space = Tuple((Box(np.array([0.0, 0.0, -1.0]), 1.0, \
@@ -418,7 +438,7 @@ class CarlaRlEnv(gym.Env):
             )),
             'bev': Box(0, 255, shape=(self.display_size[0], \
             self.display_size[1], 3), dtype=np.uint8),
-            'target_pos' : Box(-np.inf, np.inf, shape=(3,), \
+            'trgt_pos' : Box(-np.inf, np.inf, shape=(3,), \
             dtype=np.float32)
         })
     
@@ -429,6 +449,11 @@ class CarlaRlEnv(gym.Env):
         brk = action[0][1]
         trn = action[0][2]
         rvs = action[1][0]
+        
+        #print("acc",acc)
+        #print("brk",brk)
+        #print("trn",trn)
+        #print("rvs",rvs)
         
         act = carla.VehicleControl(throttle=float(acc), \
         steer=float(trn), brake=float(brk), reverse=bool(rvs))
@@ -443,15 +468,16 @@ class CarlaRlEnv(gym.Env):
         transform.rotation.pitch -= 90
         #self.spectator.set_transform(transform)
         
+        img_size = (180,180)
         observation = {
-        'left_camera' : self.left_camera.measure_data if self.left_camera is not None else None,
-        'front_camera': self.front_camera.measure_data if self.left_camera is not None else None,
-        'right_camera': self.right_camera.measure_data if self.left_camera is not None else None,
-        'rear_camera' : self.rear_camera.measure_data if self.left_camera is not None else None,
-        'lidar_image' : self.lidar.measure_data if self.left_camera is not None else None,
-        'radar_image' : self.radar.measure_data if self.left_camera is not None else None,
-        'gnss': self.gnss.measure_data if self.left_camera is not None else None,
-        'imu': self.imu.measure_data if self.left_camera is not None else None,
+        'left_camera' : self.left_camera.measure_data if self.left_camera is not None else np.zeros(img_size),
+        'front_camera': self.front_camera.measure_data if self.front_camera is not None else np.zeros(img_size),
+        'right_camera': self.right_camera.measure_data if self.right_camera is not None else np.zeros(img_size),
+        'rear_camera' : self.rear_camera.measure_data if self.rear_camera is not None else np.zeros(img_size),
+        'lidar_image' : self.lidar.measure_data if self.lidar is not None else np.zeros(img_size),
+        'radar_image' : self.radar.measure_data if self.radar is not None else np.zeros(img_size),
+        'gnss': self.gnss.measure_data if self.left_camera is not None else np.zeros(3),
+        'imu': self.imu.measure_data if self.left_camera is not None else (np.zeros(3),np.zeros(3),np.zeros(1)),
         'bev': self.bev.measure_data,
         'trgt_pos' : self.target_pos.measure_data,
         }
@@ -471,15 +497,16 @@ class CarlaRlEnv(gym.Env):
         self.reward = 0.0
         self.done = False
         
+        img_size = (180,180)
         observation = {
-        'left_camera' : self.left_camera.measure_data if self.left_camera is not None else None,
-        'front_camera': self.front_camera.measure_data if self.left_camera is not None else None,
-        'right_camera': self.right_camera.measure_data if self.left_camera is not None else None,
-        'rear_camera' : self.rear_camera.measure_data if self.left_camera is not None else None,
-        'lidar_image' : self.lidar.measure_data if self.left_camera is not None else None,
-        'radar_image' : self.radar.measure_data if self.left_camera is not None else None,
-        'gnss': self.gnss.measure_data if self.left_camera is not None else None,
-        'imu': self.imu.measure_data if self.left_camera is not None else None,
+        'left_camera' : self.left_camera.measure_data if self.left_camera is not None else np.zeros(img_size),
+        'front_camera': self.front_camera.measure_data if self.front_camera is not None else np.zeros(img_size),
+        'right_camera': self.right_camera.measure_data if self.right_camera is not None else np.zeros(img_size),
+        'rear_camera' : self.rear_camera.measure_data if self.rear_camera is not None else np.zeros(img_size),
+        'lidar_image' : self.lidar.measure_data if self.lidar is not None else np.zeros(img_size),
+        'radar_image' : self.radar.measure_data if self.radar is not None else np.zeros(img_size),
+        'gnss': self.gnss.measure_data if self.left_camera is not None else np.zeros(3),
+        'imu': self.imu.measure_data if self.left_camera is not None else (np.zeros(3),np.zeros(3),np.zeros(1)),
         'bev': self.bev.measure_data,
         'trgt_pos' : self.target_pos.measure_data,
         }
@@ -488,70 +515,101 @@ class CarlaRlEnv(gym.Env):
         
     def deal_with_reward_and_done(self):
         self.reward = 0.0
+        
+        def cal_lat_error_2D(waypoint,location):
+            vec_2D = np.array([
+            location.x-waypoint[0].transform.location.x,
+            location.y-waypoint[0].transform.location.y])
+            lv_2D = np.linalg.norm(np.array(vec_2D))
+            omega_2D = np.array([
+            np.cos(waypoint[0].transform.rotation.yaw/180.0*np.pi),
+            np.sin(waypoint[0].transform.rotation.yaw/180.0*np.pi)])
+            cross = np.cross(omega_2D, vec_2D/lv_2D)
+            return - lv_2D * cross, omega_2D
+        
+        # time elapes    
+        time_reward = -1.0
+        if self.current_step > 500:
+            self.done = True
+        # collision
         if self.collision.measure_data:
-            collision_reward = -200.0
+            collision_reward = -1.0
             self.done = True
             self.collision.measure_data = None
         else:
             collision_reward = 0.0
-        
+        # lane invasion
         if self.lane_invasion.measure_data is not None:
             if self.lane_invasion.measure_data == \
             'Broken' or 'BrokenSolid' or'BrokenBroken':
                 lane_invasion_reward = 0.0
             else:
-                lane_invasion_reward = -100.0
+                self.done = True
+                lane_invasion_reward = -1.0
             self.lane_invasion.measure_data = None
         else:
             lane_invasion_reward = 0.0
+        # traffic light
+        #if self.ego_vehicle.is_at_traffic_light():
+        #    self.done = True
+        #    cross_red_light_reward = -1.0
+        #else:
+        #    cross_red_light_reward = 0.0
         
-        if self.ego_vehicle.is_at_traffic_light():
-            cross_red_light_reward = -100.0
-        else:
-            cross_red_light_reward = 0.0
-        
+        # speed limit
         current_velocity = self.ego_vehicle.get_velocity()
         current_speed = np.sqrt(current_velocity.x**2 + \
         current_velocity.y**2 + \
-        current_velocity.z**2)
-        current_speed_limit = 60.0
-        if current_speed_limit is not None:
-            current_speed_limit = \
-            min(60.0,self.ego_vehicle.get_speed_limit() / 3.6)
-        if current_speed > current_speed_limit:
-            over_speed_reward = -10.0 * \
-            (current_speed - current_speed_limit)
-        else:
-            over_speed_reward = 0.0
+        current_velocity.z**2)    # unit m/s
+        current_speed_limit = 30.0    # unit m/s
+        #current_speed_limit = \
+        #min(current_speed_limit,self.ego_vehicle.get_speed_limit() / 3.6)
         
         current_location = self.ego_vehicle.get_transform().location
         distance = \
-         self.target_pos.transform.location.distance(current_location)
-        distance_reward = -distance
+        current_location.distance(self.target_pos.transform.location)
         if distance < 1.0:
-            distance_reward = 50.0
+            arriving_reward = 1.0
             self.done = True
-        
-        time_reward = -self.current_step
-        if self.current_step > 500:
-            self.done = True
+        else:
+            arriving_reward = 0.0
         
         if self.enable_route_planner:
             dis = 1000.0
             for p in self.waypoints:
-                dis = min(dis, \
-                p[0].transform.location.distance(current_location))
-            off_way_reward = -dis
+                if current_location.distance(p[0].transform.location) \
+                < dis:
+                    dis = current_location.distance(p[0].transform.location)
+                    wp = p
+        
+        lat_err, omg = cal_lat_error_2D(wp,current_location)
+        
+        if abs(lat_err) > 2.0:
+            off_way_reward = -1.0
         else:
             off_way_reward = 0.0
         
-        self.reward = collision_reward + \
-        lane_invasion_reward + \
-        cross_red_light_reward + \
-        over_speed_reward + \
-        distance_reward + \
-        time_reward + \
-        off_way_reward
+        v_long = np.dot(np.array([current_velocity.x, \
+        current_velocity.y]),omg)
+        
+        if v_long > current_speed_limit:
+            speed_reward = -(current_speed_limit - v_long)**2.0
+        else:
+            speed_reward = v_long
+        
+        #print("------------------------------------------")
+        #print("current_velocity.x",current_velocity.x)
+        #print("current_speed_limit",current_speed_limit)
+        #print("v_long",v_long)
+        #print("speed_reward",speed_reward)
+        #print("------------------------------------------")
+        
+        self.reward = 0.01 * time_reward + \
+        200.0 * collision_reward + \
+        100.0 * lane_invasion_reward + \
+        100.0 * arriving_reward + \
+        0.1 * off_way_reward + \
+        1.0 * speed_reward
         
         return self.reward, self.done
             
@@ -577,6 +635,8 @@ class CarlaRlEnv(gym.Env):
         self.route_planner_global.trace_route( \
         self.ego_vehicle.get_location(), \
         self.target_pos.transform.location)
+        if len(self.waypoints) ==0 :
+            print("planned waypoints length is zero")
         
         bbe_x = self.ego_vehicle.bounding_box.extent.x
         bbe_y = self.ego_vehicle.bounding_box.extent.y
@@ -725,6 +785,8 @@ class CarlaRlEnv(gym.Env):
             
     
     def remove_all_actors(self):
+        if self.waypoints is not None:
+            del self.waypoints
         if self.target_pos is not None:
             del self.target_pos
         for s in self.sensor_list:

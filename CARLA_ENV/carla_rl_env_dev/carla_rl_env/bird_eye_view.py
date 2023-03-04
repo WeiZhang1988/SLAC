@@ -189,7 +189,7 @@ class MapImage(object):
     of a Carla town has not changed, it will read and use the stored image if it was rendered in a previous execution"""
 
     def __init__(self, carla_world, carla_map, pixels_per_meter, \
-    show_triggers=True, show_connections=False, show_spawn_points=False):
+    show_triggers=False, show_connections=False, show_spawn_points=False):
         """ Renders the map image generated based on the world, its map and additional flags that provide extra information about the road network"""
         self._pixels_per_meter = pixels_per_meter
         self.scale = 1.0
@@ -233,11 +233,10 @@ class MapImage(object):
         dirname = os.path.join("cache", "no_rendering_mode")
         full_path = str(os.path.join(dirname, filename))
 
-        #if os.path.isfile(full_path):
-        #    # Load Image
-        #    self.big_map_surface = pygame.image.load(full_path)
-        #else:
-        if True:
+        if os.path.isfile(full_path):
+            # Load Image
+            self.big_map_surface = pygame.image.load(full_path)
+        else:
             # Render map
             self.draw_road_map(
                 self.big_map_surface,
@@ -262,7 +261,7 @@ class MapImage(object):
 
     def draw_road_map(self, map_surface, carla_world, carla_map, world_to_pixel, world_to_pixel_width):
         """Draws all the roads, including lane markings, arrows and traffic signs"""
-        map_surface.fill(COLOR_ALUMINIUM_4)
+        map_surface.fill(COLOR_RED)#COLOR_ALUMINIUM_4
         precision = 0.05
 
         def lane_marking_color_to_tango(lane_marking_color):
@@ -507,8 +506,8 @@ class MapImage(object):
 
                 # Draw Shoulders, Parkings and Sidewalks
                 PARKING_COLOR  = pygame.Color(0,0,255)#COLOR_ALUMINIUM_4_5
-                SHOULDER_COLOR = COLOR_SCARLET_RED_0#COLOR_RED#COLOR_ALUMINIUM_5
-                SIDEWALK_COLOR = COLOR_SCARLET_RED_2#COLOR_RED#COLOR_ALUMINIUM_3
+                SHOULDER_COLOR = COLOR_RED#COLOR_SCARLET_RED_0#COLOR_ALUMINIUM_5
+                SIDEWALK_COLOR = COLOR_RED#COLOR_SCARLET_RED_2#COLOR_ALUMINIUM_3
 
                 shoulder = [[], []]
                 parking = [[], []]
@@ -566,9 +565,9 @@ class MapImage(object):
                 # Draw Lane Markings and Arrows
                 if not waypoint.is_junction:
                     draw_lane_marking(map_surface, [waypoints, waypoints])
-                    for n, wp in enumerate(waypoints):
-                        if ((n + 1) % 400) == 0:
-                            draw_arrow(map_surface, wp.transform)
+                    #for n, wp in enumerate(waypoints):
+                    #    if ((n + 1) % 400) == 0:
+                    #        draw_arrow(map_surface, wp.transform)
 
         topology = carla_map.get_topology()
         draw_topology(topology, 0)
@@ -644,25 +643,30 @@ class BirdEyeView(object):
     def __init__(self, world, pixels_per_meter, pixels_ahead_vehicle, \
     display_size, display_pos, display_pos_global, hero_actor, \
     target_transform, waypoints = None):
+        # resource from outside
         self.world = world
         self.pixels_per_meter = pixels_per_meter
+        self.pixels_ahead_vehicle = pixels_ahead_vehicle
         self.display_size = display_size
         self.display_pos = display_pos
         self.display_pos_global = display_pos_global
-        self.pixels_ahead_vehicle = pixels_ahead_vehicle
+        self.hero_actor = hero_actor
+        self.target_transform = target_transform
+        self.waypoints = waypoints
+        
+        # self created resource
         self.server_clock = pygame.time.Clock()
         self.surface = pygame.Surface(display_size).convert()
         self.surface.set_colorkey(COLOR_BLACK)
         self.surface_global = pygame.Surface(display_size).convert()
         self.surface_global.set_colorkey(COLOR_BLACK)
-        self.measure_data = None
+        self.measure_data = np.zeros((display_size[0],display_size[1],3), dtype=np.uint8)
         
         # World data
         self.town_map = self.world.get_map()
         self.actors_with_transforms = []
         
         # Hero actor
-        self.hero_actor = hero_actor
         if self.hero_actor is not None:
             self.hero_id = self.hero_actor.id
             self.hero_transform = self.hero_actor.get_transform()
@@ -670,10 +674,6 @@ class BirdEyeView(object):
             self.hero_id = None
             self.hero_transform = None
             
-        self.target_transform = target_transform
-        
-        self.waypoints = waypoints
-        
         # Create Surfaces
         self.map_image = MapImage(self.world, self.town_map, \
         self.pixels_per_meter)
@@ -708,39 +708,21 @@ class BirdEyeView(object):
         weak_self, timestamp))
     
     def destroy(self):
-        if self.server_clock is not None:
-            del self.server_clock
-        if self.surface is not None:
-            del self.surface
-        if self.surface_global is not None:
-            del self.surface_global
-        if self.measure_data is not None:
-            del self.measure_data
-
-        self.actors_with_transforms = []
-
-        if self.hero_actor is not None:
-            del self.hero_actor
-        if self.hero_id is not None:
-            del self.hero_id
-        if self.hero_transform is not None:
-            del self.hero_transform
-        
-        if self.map_image is not None:
-            del self.map_image
-        
-        if self.actors_surface is not None:
-            del self.actors_surface
-        if self.waypoints_surface is not None:
-            del self.waypoints_surface
-        if self.hero_surface is not None:
-            del self.hero_surface
-        if self.result_surface is not None:
-            del self.result_surface
-        
-        if self.traffic_light_surfaces is not None:
-            del self.traffic_light_surfaces
-        
+        del self.server_clock
+        del self.surface
+        del self.surface_global
+        del self.measure_data
+        del self.town_map
+        del self.actors_with_transforms
+        del self.hero_id
+        del self.hero_transform
+        del self.map_image
+        del self.actors_surface
+        del self.waypoints_surface
+        del self.hero_surface
+        del self.result_surface
+        del self.traffic_light_surfaces            
+           
     @staticmethod
     def on_world_tick(weak_self, timestamp):
         self = weak_self()
@@ -893,16 +875,16 @@ class BirdEyeView(object):
             
     def render_actors(self, surface, vehicles, traffic_lights, speed_limits, walkers):
         # Static actors
-        self.render_traffic_lights(surface, \
-        [tl[0] for tl in traffic_lights], \
-        self.map_image.show_triggers, \
-        self.map_image.world_to_pixel)
+        #self.render_traffic_lights(surface, \
+        #[tl[0] for tl in traffic_lights], \
+        #self.map_image.show_triggers, \
+        #self.map_image.world_to_pixel)
         
-        self.render_speed_limits(surface, \
-        [sl[0] for sl in speed_limits], \
-        self.map_image.show_triggers, \
-        self.map_image.world_to_pixel, \
-        self.map_image.world_to_pixel_width)
+        #self.render_speed_limits(surface, \
+        #[sl[0] for sl in speed_limits], \
+        #self.map_image.show_triggers, \
+        #self.map_image.world_to_pixel, \
+        #self.map_image.world_to_pixel_width)
         
         # Dynamic actors
         self.render_vehicles(surface, vehicles, \
@@ -910,19 +892,20 @@ class BirdEyeView(object):
         self.render_walkers(surface, walkers, \
         self.map_image.world_to_pixel)
         
-        self.render_points(surface, (COLOR_GREEN,COLOR_SKY_BLUE_2), \
+        self.render_points(surface, (COLOR_GREEN,COLOR_BLUE), \
         self.target_transform, 10, \
         self.map_image.world_to_pixel)
     
     def render_waypoints(self, surface, waypoints, world_to_pixel):
+        #print("rendering waypoints")
         color = COLOR_CYAN
         corners = []
         for p in waypoints:
             corners.append(carla.Location(x=p[0].transform.location.x, \
             y=p[0].transform.location.y))
         corners = [world_to_pixel(p) for p in corners]
-        if len(corners) > 2:
-            pygame.draw.lines(surface, color, False, corners, 10)
+        for c in corners:
+            pygame.draw.circle(surface, color, c, 10)
         
     def clip_surfaces(self, clipping_rect):
         self.actors_surface.set_clip(clipping_rect)

@@ -97,6 +97,7 @@ class SacAgent(object):
 		print('--- loading done ---')
 	#----------------------------------------------------------------
 	def learn(self):
+		#print('... learning ...')
 		if self.replay_buffer.mem_cntr < self.batch_size:
 			return
 		#------------------------------------------------------------
@@ -138,3 +139,4 @@ class SacAgent(object):
 			self.update_network_parameters()
 		#------------------------------------------------------------
 		self.learning_step += 1
+		#print('... learning done ...')

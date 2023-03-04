@@ -4,9 +4,10 @@ import numpy as np
 import tensorflow as tf
 
 class WrappedGymEnv(gym.Wrapper):
-	def __init__(self, env, steps_com=1):
+	def __init__(self, env, image_size=[64,64], steps_com=1):
 		super(WrappedGymEnv,self).__init__(env)
 		self.env = env
+		self.image_size = image_size
 		self.steps_com = steps_com
 		
 		self.action_space = Box(-1.0, 1.0, \
@@ -26,7 +27,7 @@ class WrappedGymEnv(gym.Wrapper):
 		obs_raw = self.env.reset()
 		obs = {
         'bev' : tf.image.resize(tf.convert_to_tensor(obs_raw['bev']), \
-        [180,180]).numpy().astype(np.float32) / self.observation_high,
+        self.image_size).numpy().astype(np.float32) / self.observation_high,
         }
 		return obs
 	def step(self, action):
@@ -58,7 +59,7 @@ class WrappedGymEnv(gym.Wrapper):
 		self.num_step += 1
 		obs = {
         'bev' : tf.image.resize(tf.convert_to_tensor(obs_raw['bev']), \
-        [180,180]).numpy().astype(np.float32) / self.observation_high,
+        self.image_size).numpy().astype(np.float32) / self.observation_high,
         }
 		return obs, np.array([total_reward]), np.array([step_type]), \
 		np.array([done]), info

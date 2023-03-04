@@ -42,7 +42,7 @@ class CriticNetwork(keras.Model):
 		self.checkpoint_dir = chkpt_dir
 		self.checkpoint_file = os.path.join(self.checkpoint_dir, name+'_sac')
 		#------------------------------------------------------------
-		self.image_input = keras.layers.InputLayer(input_shape=(180,180,3))
+		self.image_input = keras.layers.InputLayer(input_shape=(64,64,3))
 		self.action_input = keras.layers.InputLayer(input_shape=(3,))
 		#------------------------------------------------------------
 		self.conv = ConvLayer()
@@ -81,7 +81,7 @@ class ActorNetwork(keras.Model):
 		#------------------------------------------------------------
 		self.noise = 1e-6
 		#------------------------------------------------------------
-		self.image_input = keras.layers.InputLayer(input_shape=(180,180,3))
+		self.image_input = keras.layers.InputLayer(input_shape=(64,64,3))
 		#------------------------------------------------------------
 		self.conv = ConvLayer()
 		self.fc1 = keras.layers.Dense(self.fc1_dims, activation='relu')

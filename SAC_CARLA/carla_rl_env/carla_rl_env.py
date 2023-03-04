@@ -438,7 +438,7 @@ class CarlaRlEnv(gym.Env):
             )),
             'bev': Box(0, 255, shape=(self.display_size[0], \
             self.display_size[1], 3), dtype=np.uint8),
-            'target_pos' : Box(-np.inf, np.inf, shape=(3,), \
+            'trgt_pos' : Box(-np.inf, np.inf, shape=(3,), \
             dtype=np.float32)
         })
     
@@ -468,15 +468,16 @@ class CarlaRlEnv(gym.Env):
         transform.rotation.pitch -= 90
         #self.spectator.set_transform(transform)
         
+        img_size = (180,180)
         observation = {
-        'left_camera' : self.left_camera.measure_data if self.left_camera is not None else None,
-        'front_camera': self.front_camera.measure_data if self.left_camera is not None else None,
-        'right_camera': self.right_camera.measure_data if self.left_camera is not None else None,
-        'rear_camera' : self.rear_camera.measure_data if self.left_camera is not None else None,
-        'lidar_image' : self.lidar.measure_data if self.left_camera is not None else None,
-        'radar_image' : self.radar.measure_data if self.left_camera is not None else None,
-        'gnss': self.gnss.measure_data if self.left_camera is not None else None,
-        'imu': self.imu.measure_data if self.left_camera is not None else None,
+        'left_camera' : self.left_camera.measure_data if self.left_camera is not None else np.zeros(img_size),
+        'front_camera': self.front_camera.measure_data if self.front_camera is not None else np.zeros(img_size),
+        'right_camera': self.right_camera.measure_data if self.right_camera is not None else np.zeros(img_size),
+        'rear_camera' : self.rear_camera.measure_data if self.rear_camera is not None else np.zeros(img_size),
+        'lidar_image' : self.lidar.measure_data if self.lidar is not None else np.zeros(img_size),
+        'radar_image' : self.radar.measure_data if self.radar is not None else np.zeros(img_size),
+        'gnss': self.gnss.measure_data if self.left_camera is not None else np.zeros(3),
+        'imu': self.imu.measure_data if self.left_camera is not None else (np.zeros(3),np.zeros(3),np.zeros(1)),
         'bev': self.bev.measure_data,
         'trgt_pos' : self.target_pos.measure_data,
         }
@@ -496,15 +497,16 @@ class CarlaRlEnv(gym.Env):
         self.reward = 0.0
         self.done = False
         
+        img_size = (180,180)
         observation = {
-        'left_camera' : self.left_camera.measure_data if self.left_camera is not None else None,
-        'front_camera': self.front_camera.measure_data if self.left_camera is not None else None,
-        'right_camera': self.right_camera.measure_data if self.left_camera is not None else None,
-        'rear_camera' : self.rear_camera.measure_data if self.left_camera is not None else None,
-        'lidar_image' : self.lidar.measure_data if self.left_camera is not None else None,
-        'radar_image' : self.radar.measure_data if self.left_camera is not None else None,
-        'gnss': self.gnss.measure_data if self.left_camera is not None else None,
-        'imu': self.imu.measure_data if self.left_camera is not None else None,
+        'left_camera' : self.left_camera.measure_data if self.left_camera is not None else np.zeros(img_size),
+        'front_camera': self.front_camera.measure_data if self.front_camera is not None else np.zeros(img_size),
+        'right_camera': self.right_camera.measure_data if self.right_camera is not None else np.zeros(img_size),
+        'rear_camera' : self.rear_camera.measure_data if self.rear_camera is not None else np.zeros(img_size),
+        'lidar_image' : self.lidar.measure_data if self.lidar is not None else np.zeros(img_size),
+        'radar_image' : self.radar.measure_data if self.radar is not None else np.zeros(img_size),
+        'gnss': self.gnss.measure_data if self.left_camera is not None else np.zeros(3),
+        'imu': self.imu.measure_data if self.left_camera is not None else (np.zeros(3),np.zeros(3),np.zeros(1)),
         'bev': self.bev.measure_data,
         'trgt_pos' : self.target_pos.measure_data,
         }
@@ -548,11 +550,11 @@ class CarlaRlEnv(gym.Env):
         else:
             lane_invasion_reward = 0.0
         # traffic light
-        if self.ego_vehicle.is_at_traffic_light():
-            self.done = True
-            cross_red_light_reward = -1.0
-        else:
-            cross_red_light_reward = 0.0
+        #if self.ego_vehicle.is_at_traffic_light():
+        #    self.done = True
+        #    cross_red_light_reward = -1.0
+        #else:
+        #    cross_red_light_reward = 0.0
         
         # speed limit
         current_velocity = self.ego_vehicle.get_velocity()
@@ -560,8 +562,8 @@ class CarlaRlEnv(gym.Env):
         current_velocity.y**2 + \
         current_velocity.z**2)    # unit m/s
         current_speed_limit = 30.0    # unit m/s
-        current_speed_limit = \
-        min(current_speed_limit,self.ego_vehicle.get_speed_limit() / 3.6)
+        #current_speed_limit = \
+        #min(current_speed_limit,self.ego_vehicle.get_speed_limit() / 3.6)
         
         current_location = self.ego_vehicle.get_transform().location
         distance = \
@@ -602,12 +604,11 @@ class CarlaRlEnv(gym.Env):
         #print("speed_reward",speed_reward)
         #print("------------------------------------------")
         
-        self.reward = 0.1 * time_reward + \
+        self.reward = 0.01 * time_reward + \
         200.0 * collision_reward + \
         100.0 * lane_invasion_reward + \
-        100.0 * cross_red_light_reward + \
-        50.0 * arriving_reward + \
-        1.0 * off_way_reward + \
+        100.0 * arriving_reward + \
+        0.1 * off_way_reward + \
         1.0 * speed_reward
         
         return self.reward, self.done

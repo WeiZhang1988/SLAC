@@ -1,4 +1,8 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
+import os
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -75,7 +79,7 @@ class Decoder(layers.Layer):
     x = self.conv2dt1(x)
     x = self.conv2dt2(x)
     output = self.dense_output(x)
-    return tfp.distribution.Independent(distribution=tfd.Normal(loc=output, scale=1),reinterpreted_batch_ndims=3)
+    return output#tfp.distribution.Independent(distribution=tfd.Normal(loc=output, scale=1),reinterpreted_batch_ndims=3)
 
 
 class VariationalAutoEncoder(tf.keras.Model):

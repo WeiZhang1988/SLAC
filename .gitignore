@@ -5,5 +5,6 @@
 /PPO_PENDULUM/tmp/*
 /PPO_MCC/tmp/*
 /SAC_CARLA/tmp/*
+/SLAC_CARLA_V2/tmp/*
 /TRANSFORMER/checkpoints/*
 /VISION_TRANSFORMER/flower_photos/*

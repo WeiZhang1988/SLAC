@@ -189,7 +189,7 @@ class MapImage(object):
     of a Carla town has not changed, it will read and use the stored image if it was rendered in a previous execution"""
 
     def __init__(self, carla_world, carla_map, pixels_per_meter, \
-    show_triggers=True, show_connections=False, show_spawn_points=False):
+    show_triggers=False, show_connections=False, show_spawn_points=False):
         """ Renders the map image generated based on the world, its map and additional flags that provide extra information about the road network"""
         self._pixels_per_meter = pixels_per_meter
         self.scale = 1.0
@@ -233,11 +233,10 @@ class MapImage(object):
         dirname = os.path.join("cache", "no_rendering_mode")
         full_path = str(os.path.join(dirname, filename))
 
-        #if os.path.isfile(full_path):
-        #    # Load Image
-        #    self.big_map_surface = pygame.image.load(full_path)
-        #else:
-        if True:
+        if os.path.isfile(full_path):
+            # Load Image
+            self.big_map_surface = pygame.image.load(full_path)
+        else:
             # Render map
             self.draw_road_map(
                 self.big_map_surface,
@@ -262,7 +261,7 @@ class MapImage(object):
 
     def draw_road_map(self, map_surface, carla_world, carla_map, world_to_pixel, world_to_pixel_width):
         """Draws all the roads, including lane markings, arrows and traffic signs"""
-        map_surface.fill(COLOR_ALUMINIUM_4)
+        map_surface.fill(COLOR_RED)#COLOR_ALUMINIUM_4
         precision = 0.05
 
         def lane_marking_color_to_tango(lane_marking_color):
@@ -507,8 +506,8 @@ class MapImage(object):
 
                 # Draw Shoulders, Parkings and Sidewalks
                 PARKING_COLOR  = pygame.Color(0,0,255)#COLOR_ALUMINIUM_4_5
-                SHOULDER_COLOR = COLOR_SCARLET_RED_0#COLOR_RED#COLOR_ALUMINIUM_5
-                SIDEWALK_COLOR = COLOR_SCARLET_RED_2#COLOR_RED#COLOR_ALUMINIUM_3
+                SHOULDER_COLOR = COLOR_RED#COLOR_SCARLET_RED_0#COLOR_ALUMINIUM_5
+                SIDEWALK_COLOR = COLOR_RED#COLOR_SCARLET_RED_2#COLOR_ALUMINIUM_3
 
                 shoulder = [[], []]
                 parking = [[], []]
@@ -566,9 +565,9 @@ class MapImage(object):
                 # Draw Lane Markings and Arrows
                 if not waypoint.is_junction:
                     draw_lane_marking(map_surface, [waypoints, waypoints])
-                    for n, wp in enumerate(waypoints):
-                        if ((n + 1) % 400) == 0:
-                            draw_arrow(map_surface, wp.transform)
+                    #for n, wp in enumerate(waypoints):
+                    #    if ((n + 1) % 400) == 0:
+                    #        draw_arrow(map_surface, wp.transform)
 
         topology = carla_map.get_topology()
         draw_topology(topology, 0)
@@ -876,16 +875,16 @@ class BirdEyeView(object):
             
     def render_actors(self, surface, vehicles, traffic_lights, speed_limits, walkers):
         # Static actors
-        self.render_traffic_lights(surface, \
-        [tl[0] for tl in traffic_lights], \
-        self.map_image.show_triggers, \
-        self.map_image.world_to_pixel)
+        #self.render_traffic_lights(surface, \
+        #[tl[0] for tl in traffic_lights], \
+        #self.map_image.show_triggers, \
+        #self.map_image.world_to_pixel)
         
-        self.render_speed_limits(surface, \
-        [sl[0] for sl in speed_limits], \
-        self.map_image.show_triggers, \
-        self.map_image.world_to_pixel, \
-        self.map_image.world_to_pixel_width)
+        #self.render_speed_limits(surface, \
+        #[sl[0] for sl in speed_limits], \
+        #self.map_image.show_triggers, \
+        #self.map_image.world_to_pixel, \
+        #self.map_image.world_to_pixel_width)
         
         # Dynamic actors
         self.render_vehicles(surface, vehicles, \
@@ -893,7 +892,7 @@ class BirdEyeView(object):
         self.render_walkers(surface, walkers, \
         self.map_image.world_to_pixel)
         
-        self.render_points(surface, (COLOR_GREEN,COLOR_SKY_BLUE_2), \
+        self.render_points(surface, (COLOR_GREEN,COLOR_BLUE), \
         self.target_transform, 10, \
         self.map_image.world_to_pixel)
     

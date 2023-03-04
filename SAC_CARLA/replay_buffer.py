@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 class ReplayBuffer:
-    def __init__(self, max_size=10000, image_shape=(180,180,3), action_shape=(2,)):
+    def __init__(self, max_size=10000, image_shape=(64,64,3), action_shape=(2,)):
         self.mem_size = max_size
         self.mem_cntr = 0
         #------------------------------------------------------------
