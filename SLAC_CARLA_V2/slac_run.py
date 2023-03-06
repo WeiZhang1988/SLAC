@@ -32,7 +32,7 @@ def main():
 	'sensors_to_amount': ['front_rgb'],
 	}
 	#simulation setting
-	load_checkpoint = False
+	load_checkpoint = True
 	activate_learning = True
 	activate_pre_learning_random_game = False
 	num_learning_iter_in_pre_learning = 30
@@ -62,7 +62,7 @@ def main():
 			step = 0
 			while not done:
 				action = \
-				np.random.normal([1.0, 0.0],[0.1, 0.3],env.action_space.shape)
+				np.random.normal([1.0, 0.0],[0.3, 0.3],env.action_space.shape)
 				next_observation, reward, step_type, done, info = env.step(action)
 				
 				if render_animation:
@@ -80,11 +80,12 @@ def main():
 			if avg_score > best_score:
 				best_score = avg_score
 				slacAgent.save_models()
-			#------------------------------------------------------------
-			if activate_learning:
-				for _ in range(num_learning_iter):	
-					slacAgent.learn()
+		#------------------------------------------------------------
+		if activate_learning:
+			for _ in range(num_learning_iter):	
+				slacAgent.learn()
 	#----------------------------------------------------------------
+	best_score = -np.inf
 	avg_scores = []
 	try:
 		for i in range(num_episodes):
