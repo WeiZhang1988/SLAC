@@ -476,8 +476,8 @@ class CarlaRlEnv(gym.Env):
         'rear_camera' : self.rear_camera.measure_data if self.rear_camera is not None else np.zeros(img_size),
         'lidar_image' : self.lidar.measure_data if self.lidar is not None else np.zeros(img_size),
         'radar_image' : self.radar.measure_data if self.radar is not None else np.zeros(img_size),
-        'gnss': self.gnss.measure_data if self.left_camera is not None else np.zeros(3),
-        'imu': self.imu.measure_data if self.left_camera is not None else (np.zeros(3),np.zeros(3),np.zeros(1)),
+        'gnss': self.gnss.measure_data if self.gnss is not None else np.zeros(3),
+        'imu': self.imu.measure_data if self.imu is not None else (np.zeros(3),np.zeros(3),np.zeros(1)),
         'bev': self.bev.measure_data,
         'trgt_pos' : self.target_pos.measure_data,
         }
@@ -505,8 +505,8 @@ class CarlaRlEnv(gym.Env):
         'rear_camera' : self.rear_camera.measure_data if self.rear_camera is not None else np.zeros(img_size),
         'lidar_image' : self.lidar.measure_data if self.lidar is not None else np.zeros(img_size),
         'radar_image' : self.radar.measure_data if self.radar is not None else np.zeros(img_size),
-        'gnss': self.gnss.measure_data if self.left_camera is not None else np.zeros(3),
-        'imu': self.imu.measure_data if self.left_camera is not None else (np.zeros(3),np.zeros(3),np.zeros(1)),
+        'gnss': self.gnss.measure_data if self.gnss is not None else np.zeros(3),
+        'imu': self.imu.measure_data if self.imu is not None else (np.zeros(3),np.zeros(3),np.zeros(1)),
         'bev': self.bev.measure_data,
         'trgt_pos' : self.target_pos.measure_data,
         }
@@ -543,7 +543,7 @@ class CarlaRlEnv(gym.Env):
             
         # lane invasion
         current_wp = self.map.get_waypoint(current_location)
-        if current_location.distance(current_wp.transform.location) > current_wp.lane_width / 2.0:
+        if current_location.distance(current_wp.transform.location) > (current_wp.lane_width / 2.0 + 0.2):
             self.done = True
             lane_invasion_reward = -1.0
         
@@ -571,7 +571,7 @@ class CarlaRlEnv(gym.Env):
         current_speed = np.sqrt(current_velocity.x**2 + \
         current_velocity.y**2 + \
         current_velocity.z**2)    # unit m/s
-        current_speed_limit = 30.0    # unit m/s
+        current_speed_limit = 10.0    # unit m/s
         #current_speed_limit = \
         #min(current_speed_limit,self.ego_vehicle.get_speed_limit() / 3.6)
         
@@ -593,16 +593,14 @@ class CarlaRlEnv(gym.Env):
                     dis = current_location.distance(self.waypoints[n_c_wp][0].transform.location)
                     wp = self.waypoints[n_c_wp]
                     idx = n_c_wp
-                    if dis > 15.0:
-                        off_way_reward = -1000.0
-                        self.done = True
             for _ in range(idx):
                 self.waypoints.pop(0)
         
         lat_err, omg = cal_lat_error_2D(wp,current_location)
 
-        if abs(lat_err) > 2.0:
-            off_way_reward = - (abs(lat_err) - 2.0)
+        if abs(lat_err) > 1.2 * 4.0 :
+            off_way_reward = - (abs(lat_err) - (1.2 * 4.0))
+            self.done = True
         else:
             off_way_reward = 0.0
         
@@ -621,21 +619,24 @@ class CarlaRlEnv(gym.Env):
         #print("speed_reward",speed_reward)
         #print("------------------------------------------")
         
+        steer_reward = -self.ego_vehicle.get_control().steer**2
         lat_acc_reward = - abs(self.ego_vehicle.get_control().steer) * v_long**2
         
-        self.reward = 0.01 * time_reward + \
-        200.0 * collision_reward + \
-        100.0 * lane_invasion_reward + \
-        100.0 * arriving_reward + \
-        0.1 * off_way_reward + \
+        self.reward = 0.1 * time_reward + \
+        500.0 * collision_reward + \
+        300.0 * lane_invasion_reward + \
+        500.0 * arriving_reward + \
+        2.0 * off_way_reward + \
         1.0 * speed_reward + \
-        1.0 * lat_acc_reward
+        5.0 * steer_reward + \
+        0.5 * lat_acc_reward
         
         return self.reward, self.done
             
     def create_all_actors(self):
-        self.target_pos = TargetPosition(carla.Transform())
-        self.target_pos.set_transform(random.choice(self.spawn_points))
+        self.target_pos = TargetPosition(carla.Transform\
+        (carla.Location(-1.762838,119.341026,0.3),carla.Rotation(0.0,0.0,90.0)))
+        #self.target_pos.set_transform(random.choice(self.spawn_points))
     
         # create ego vehicle
         ego_vehicle_bp = \
@@ -644,9 +645,12 @@ class CarlaRlEnv(gym.Env):
         if int(bp.get_attribute('number_of_wheels'))==4])
         ego_vehicle_bp.set_attribute('role_name','hero')
         
+        #self.ego_vehicle = \
+        #self.world.try_spawn_actor(ego_vehicle_bp, \
+        #random.choice(self.spawn_points))
         self.ego_vehicle = \
         self.world.try_spawn_actor(ego_vehicle_bp, \
-        random.choice(self.spawn_points))
+        carla.Transform(carla.Location(259.391174,133.239975,0.3),carla.Rotation(0.0,0.0,0.0)))
         self.vehicle_list.append(self.ego_vehicle)
         
         self.world.tick()

@@ -29,10 +29,10 @@ def main():
 	'num_vehicles': 20,
 	'num_pedestrians': 20,
 	'enable_route_planner': True, 
-	'sensors_to_amount': ['front_rgb'],
+	'sensors_to_amount': ['left_rgb','front_rgb','right_rgb','lidar','rear_rgb','rada','top_rgb'],
 	}
 	#simulation setting
-	load_checkpoint = True
+	load_checkpoint = False
 	activate_learning = True
 	activate_pre_learning_random_game = False
 	num_learning_iter_in_pre_learning = 30

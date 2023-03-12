@@ -120,11 +120,17 @@ class SlacAgent(object):
 		print('... loading models ...')
 		opt = tf.train.CheckpointOptions(experimental_enable_async_checkpoint=True)
 		self.actor_network.load_weights(self.actor_network.checkpoint_file, options=opt)
+		os.rmdir(self.actor_network.checkpoint_dir)
 		self.critic_network1.load_weights(self.critic_network1.checkpoint_file, options=opt)
+		os.rmdir(self.critic_network1.checkpoint_dir)
 		self.critic_network2.load_weights(self.critic_network2.checkpoint_file, options=opt)
+		os.rmdir(self.critic_network2.checkpoint_dir)
 		self.target_critic_network1.load_weights(self.target_critic_network1.checkpoint_file, options=opt)
+		os.rmdir(self.target_critic_network1.checkpoint_dir)
 		self.target_critic_network2.load_weights(self.target_critic_network2.checkpoint_file, options=opt)
+		os.rmdir(self.target_critic_network2.checkpoint_dir)
 		self.model_network.load_weights(self.model_network.checkpoint_file, options=opt)
+		os.rmdir(self.model_network.checkpoint_dir)
 		with open('tmp/alpha/log_alpha.pickle', 'rb') as f:
 			self.log_alpha = pickle.load(f)
 	#----------------------------------------------------------------

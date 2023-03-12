@@ -28,7 +28,7 @@ class ReplayBuffer:
     def sample_buffer(self, batch_size=256, sequence_length=8):
         max_mem = min(self.mem_cntr, self.mem_size)
 		#------------------------------------------------------------
-        batch = np.random.choice(range(sequence_length, max_mem), batch_size, replace=False)
+        batch = np.random.choice(range(sequence_length, max_mem), min(batch_size,int(max_mem/sequence_length)), replace=False)
         batches = np.transpose(np.array([batch-i for i in reversed(range(sequence_length+1))]))
 		#------------------------------------------------------------
         observations_seq = tf.convert_to_tensor(self.observation_memory[batches],dtype=tf.float32)

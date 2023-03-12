@@ -99,7 +99,7 @@ COLOR_BLACK = pygame.Color(0, 0, 0)
 
 # Macro Defines
 PIXELS_PER_METER = 12
-PIXELS_AHEAD_VEHICLE = 50#150
+PIXELS_AHEAD_VEHICLE = 100#150
 
 
 # ==============================================================================

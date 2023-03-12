@@ -99,7 +99,7 @@ COLOR_BLACK = pygame.Color(0, 0, 0)
 
 # Macro Defines
 PIXELS_PER_METER = 12
-PIXELS_AHEAD_VEHICLE = 50#150
+PIXELS_AHEAD_VEHICLE = 100#150
 
 
 # ==============================================================================
@@ -905,7 +905,8 @@ class BirdEyeView(object):
             y=p[0].transform.location.y))
         corners = [world_to_pixel(p) for p in corners]
         for c in corners:
-            pygame.draw.circle(surface, color, c, 10)
+            pygame.draw.circle(surface, color, c, \
+            self.pixels_per_meter * 1.5)
         
     def clip_surfaces(self, clipping_rect):
         self.actors_surface.set_clip(clipping_rect)
