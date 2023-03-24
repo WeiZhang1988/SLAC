@@ -491,6 +491,7 @@ class CarlaRlEnv(gym.Env):
         self.current_step = 0
     
         self.remove_all_actors()
+        self.world.tick()
         self.create_all_actors()
         self.world.tick()
 
@@ -509,6 +510,8 @@ class CarlaRlEnv(gym.Env):
         'imu': self.imu.measure_data if self.imu is not None else (np.zeros(3),np.zeros(3),np.zeros(1)),
         'bev': self.bev.measure_data,
         'trgt_pos' : self.target_pos.measure_data,
+        'lat_error' : np.zeros(1),
+        'has_obs' : np.zeros(1),
         }
         
         return observation
@@ -623,9 +626,9 @@ class CarlaRlEnv(gym.Env):
         lat_acc_reward = - abs(self.ego_vehicle.get_control().steer) * v_long**2
         
         self.reward = 0.1 * time_reward + \
-        500.0 * collision_reward + \
-        300.0 * lane_invasion_reward + \
-        500.0 * arriving_reward + \
+        200.0 * collision_reward + \
+        10.0 * lane_invasion_reward + \
+        200.0 * arriving_reward + \
         2.0 * off_way_reward + \
         1.0 * speed_reward + \
         5.0 * steer_reward + \
